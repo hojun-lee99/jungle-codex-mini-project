@@ -3,7 +3,10 @@ from datetime import datetime, timedelta
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree as ET
 
+from flask import current_app
+
 from db.mongo import get_collection
+from services.movie_images import get_tmdb_movie_poster
 
 
 DEFAULT_TRENDS = [
@@ -18,6 +21,10 @@ DEFAULT_TRENDS = [
 ]
 
 GOOGLE_TRENDS_RSS_URL = "https://trends.google.com/trending/rss?geo={region}"
+KOBIS_WEEKLY_BOXOFFICE_URL = (
+    "http://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchWeeklyBoxOfficeList.xml"
+    "?key={api_key}&weekGb=0&targetDt={target_date}"
+)
 CATEGORY_RULES = {
     "food": [
         "맛집", "음식", "요리", "식당", "카페", "커피", "디저트", "레시피", "마라", "라면", "치킨",
@@ -125,6 +132,10 @@ def _fallback_for_missing_categories(items):
     return filled
 
 
+def _last_week_target_date():
+    return (datetime.utcnow() - timedelta(days=7)).strftime("%Y%m%d")
+
+
 def _fetch_google_trends(region="KR"):
     url = GOOGLE_TRENDS_RSS_URL.format(region=region)
     request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -165,6 +176,54 @@ def _fetch_google_trends(region="KR"):
     return _fallback_for_missing_categories(items), url
 
 
+def _fetch_kobis_weekly_boxoffice():
+    target_date = _last_week_target_date()
+    url = KOBIS_WEEKLY_BOXOFFICE_URL.format(
+        api_key=current_app.config["KOBIS_API_KEY"],
+        target_date=target_date,
+    )
+    request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urlopen(request, timeout=15) as response:
+        root = ET.fromstring(response.read())
+
+    items = []
+    for rank, item in enumerate(root.findall(".//weeklyBoxOffice"), start=1):
+        movie_name = _child_text(item, "movieNm")
+        if not movie_name:
+            continue
+        open_date = _child_text(item, "openDt")
+        audience_acc = _child_text(item, "audiAcc")
+        rank_text = _child_text(item, "rank", str(rank))
+        rank_change = _child_text(item, "rankInten")
+        poster_url = get_tmdb_movie_poster(movie_name, force_refresh=False)
+
+        headline_bits = [f"주간 박스오피스 {rank_text}위"]
+        if open_date:
+            headline_bits.append(f"개봉 {open_date}")
+        if rank_change and rank_change not in {"0", ""}:
+            direction = "상승" if not rank_change.startswith("-") else "하락"
+            headline_bits.append(f"전주 대비 {abs(int(rank_change))}계단 {direction}")
+
+        items.append(
+            {
+                "keyword": movie_name,
+                "category": "content",
+                "score": max(60, 100 - ((rank - 1) * 6)),
+                "headline": " · ".join(headline_bits),
+                "traffic": f"누적 {audience_acc}명" if audience_acc else None,
+                "image_url": poster_url,
+                "image_alt": f"{movie_name} 포스터" if poster_url else None,
+                "source": "kobis_weekly_boxoffice",
+                "target_date": target_date,
+            }
+        )
+
+    if not items:
+        raise ValueError("KOBIS weekly box office items missing")
+
+    return items, url, target_date
+
+
 def ensure_runtime_seed(region="KR"):
     trends = get_collection("trend_cache")
     if trends.count_documents({"region": region}, limit=1) == 0:
@@ -193,27 +252,39 @@ def refresh_trends_cache(force=False, region="KR"):
     if cached and cached.get("generated_at") and cached["generated_at"] > stale_cutoff and not force:
         return cached
 
+    google_url = GOOGLE_TRENDS_RSS_URL.format(region=region)
+    kobis_url = None
+    kobis_target_date = None
+    is_google_live = False
+    is_kobis_live = False
+
     try:
-        keywords, source_url = _fetch_google_trends(region=region)
-        payload = {
-            "cache_key": cache_key,
-            "source": "google_trends_rss",
-            "region": region,
-            "generated_at": now,
-            "is_live": True,
-            "source_url": source_url,
-            "keywords": keywords,
-        }
+        keywords, google_url = _fetch_google_trends(region=region)
+        is_google_live = True
     except Exception:
-        payload = {
-            "cache_key": cache_key,
-            "source": "sample_google_trends",
-            "region": region,
-            "generated_at": now,
-            "is_live": False,
-            "source_url": GOOGLE_TRENDS_RSS_URL.format(region=region),
-            "keywords": DEFAULT_TRENDS,
-        }
+        keywords = list(DEFAULT_TRENDS)
+
+    try:
+        kobis_items, kobis_url, kobis_target_date = _fetch_kobis_weekly_boxoffice()
+        keywords = [item for item in keywords if item["category"] != "content"] + kobis_items
+        is_kobis_live = True
+    except Exception:
+        pass
+
+    keywords = _fallback_for_missing_categories(keywords)
+
+    payload = {
+        "cache_key": cache_key,
+        "source": "hybrid_live_trends",
+        "region": region,
+        "generated_at": now,
+        "is_live": is_google_live or is_kobis_live,
+        "source_url": google_url,
+        "google_url": google_url,
+        "kobis_url": kobis_url,
+        "kobis_target_date": kobis_target_date,
+        "keywords": keywords,
+    }
 
     collection.update_one({"cache_key": cache_key}, {"$set": payload}, upsert=True)
     return payload
@@ -238,8 +309,11 @@ def get_trend_status(region="KR"):
         cache = refresh_trends_cache(force=False, region=region)
     return {
         "generated_at": cache.get("generated_at") if cache else None,
-        "source_label": "Google Trends RSS",
+        "source_label": "Google Trends RSS + KOBIS Weekly Box Office",
         "source_url": cache.get("source_url") if cache else GOOGLE_TRENDS_RSS_URL.format(region=region),
+        "google_url": cache.get("google_url") if cache else GOOGLE_TRENDS_RSS_URL.format(region=region),
+        "kobis_url": cache.get("kobis_url") if cache else None,
+        "kobis_target_date": cache.get("kobis_target_date") if cache else None,
         "region": region,
         "is_live": cache.get("is_live", False) if cache else False,
     }

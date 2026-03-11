@@ -4,7 +4,7 @@
 <section class="page-header-block">
     <span class="eyebrow">Trend Layer</span>
     <h1 class="display-6 fw-bold mt-2">인기 키워드와 추천 가중치</h1>
-    <p class="text-muted">Google Trends RSS 기준 최신 KR 트렌드를 가져와 추천 가중치에 반영합니다.</p>
+    <p class="text-muted">음식·패션·활동은 Google Trends RSS, 콘텐츠는 KOBIS 주간 박스오피스와 TMDB 포스터를 사용합니다.</p>
 </section>
 
 <div class="card-surface tone-mix mb-4">
@@ -26,11 +26,17 @@
                 {% else %}
                 fallback
                 {% endif %}
+                {% if trend_status.kobis_target_date %}
+                · KOBIS {{ trend_status.kobis_target_date }}
+                {% endif %}
             </p>
         </div>
         <div class="align-self-lg-center d-flex flex-wrap gap-2">
             <a href="{{ url_for('recommendations.trends', refresh=1) }}" class="btn btn-outline-dark rounded-pill px-4">트렌드 새로고침</a>
-            <a href="{{ trend_status.source_url }}" target="_blank" rel="noreferrer" class="btn btn-dark rounded-pill px-4">원본 소스 보기</a>
+            <a href="{{ trend_status.google_url }}" target="_blank" rel="noreferrer" class="btn btn-dark rounded-pill px-4">Google Trends</a>
+            {% if trend_status.kobis_url %}
+            <a href="{{ trend_status.kobis_url }}" target="_blank" rel="noreferrer" class="btn btn-outline-dark rounded-pill px-4">KOBIS</a>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -45,12 +51,17 @@
             </div>
             <div class="vstack gap-3">
                 {% for trend in items %}
-                <div class="trend-row">
-                    <div>
+                <div class="trend-row {% if trend.image_url %}trend-media-row{% endif %}">
+                    {% if trend.image_url %}
+                    <div class="trend-thumb">
+                        <img src="{{ trend.image_url }}" alt="{{ trend.image_alt or (trend.keyword ~ ' 이미지') }}" loading="lazy">
+                    </div>
+                    {% endif %}
+                    <div class="trend-copy">
                         <strong>#{{ trend.keyword }}</strong>
                         <p class="mb-0 text-muted">{{ trend.headline }}</p>
                         {% if trend.traffic %}
-                        <small class="text-muted">{{ trend.traffic }} searches</small>
+                        <small class="text-muted">{{ trend.traffic }}</small>
                         {% endif %}
                     </div>
                     <span class="trend-score">{{ trend.score }}</span>

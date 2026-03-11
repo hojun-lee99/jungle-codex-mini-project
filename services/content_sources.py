@@ -6,6 +6,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from db.mongo import get_collection
+from services.movie_images import get_tmdb_movie_poster
 
 
 NETFLIX_TUDUM_SOURCES = [
@@ -422,7 +423,14 @@ def _build_svg_poster(item):
 
 def _decorate_content_item(item):
     decorated = dict(item)
-    decorated["image_url"] = decorated.get("image_url") or _build_svg_poster(decorated)
+    poster_url = decorated.get("image_url")
+    if (
+        not poster_url
+        and decorated.get("content_type") == "영화"
+        and (decorated.get("source") == "netflix_tudum" or (decorated.get("provider") or "").lower() == "netflix")
+    ):
+        poster_url = get_tmdb_movie_poster(decorated["name"], force_refresh=False)
+    decorated["image_url"] = poster_url or _build_svg_poster(decorated)
     decorated["image_alt"] = decorated.get("image_alt") or f"{decorated['name']} 포스터"
     return decorated
 

@@ -28,3 +28,5 @@ class Config:
 
     DEFAULT_CITY = os.getenv("DEFAULT_CITY", "Seoul")
     DEFAULT_REGION = os.getenv("DEFAULT_REGION", "KR")
+    KOBIS_API_KEY = os.getenv("KOBIS_API_KEY", "a86652d30da9061d58c882903a43ef38")
+    TMDB_API_KEY = os.getenv("TMDB_API_KEY", "078dad2bb7534e8e7280c64f26badd7f")
