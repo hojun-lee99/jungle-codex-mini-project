@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}트렌드 | WhatShouldI{% endblock %}
+{% block content %}
+<section class="page-header-block">
+    <span class="eyebrow">Trend Layer</span>
+    <h1 class="display-6 fw-bold mt-2">인기 키워드와 추천 가중치</h1>
+    <p class="text-muted">현재는 샘플 데이터 기반이지만, Google Trends API 또는 별도 수집 파이프라인으로 교체할 수 있는 구조입니다.</p>
+</section>
+
+<div class="row g-4">
+    {% for category, items in grouped_trends.items() %}
+    <div class="col-lg-6">
+        <div class="card-surface h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h4 mb-0">{{ {"food":"음식","fashion":"패션","content":"콘텐츠","activity":"활동"}[category] }}</h2>
+                <span class="capsule-chip">{{ items|length }} keywords</span>
+            </div>
+            <div class="vstack gap-3">
+                {% for trend in items %}
+                <div class="trend-row">
+                    <div>
+                        <strong>#{{ trend.keyword }}</strong>
+                        <p class="mb-0 text-muted">{{ trend.headline }}</p>
+                    </div>
+                    <span class="trend-score">{{ trend.score }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

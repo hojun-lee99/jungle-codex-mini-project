@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}WhatShouldI | 하루의 선택을 추천하는 대시보드{% endblock %}
+{% block content %}
+<section class="hero-panel mb-5">
+    <div class="row g-4 align-items-center">
+        <div class="col-lg-7">
+            <span class="eyebrow">Lifestyle Recommendation Dashboard</span>
+            <h1 class="display-5 fw-bold mt-3 mb-3">오늘 뭐 먹지, 입지, 보지, 하지를 한 번에 정리하는 서비스</h1>
+            <p class="lead text-muted mb-4">WhatShouldI는 취향, 상황, 날씨, 트렌드를 엮어서 하루의 선택을 바로 실행 가능한 카드로 정리합니다.</p>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ url_for('auth.register') }}" class="btn btn-dark btn-lg rounded-pill px-4">무료로 시작하기</a>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-outline-dark btn-lg rounded-pill px-4">로그인</a>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card-surface tone-mix">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <span class="capsule-chip">오늘의 데모 흐름</span>
+                        <h3 class="h4 mt-3">점심부터 퇴근 후까지</h3>
+                    </div>
+                    <i class="bi bi-sunrise fs-2 text-dark"></i>
+                </div>
+                <div class="mini-timeline">
+                    <div><strong>Lunch</strong><span>든든한 한 그릇 음식 추천</span></div>
+                    <div><strong>Look</strong><span>온도와 스타일 취향 기반 코디 제안</span></div>
+                    <div><strong>Watch</strong><span>지금 무드에 맞는 콘텐츠 큐레이션</span></div>
+                    <div><strong>Do</strong><span>에너지와 예산을 반영한 활동 추천</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="row g-4 mb-5">
+    <div class="col-md-6 col-xl-3">
+        <div class="feature-card accent-food">
+            <i class="bi bi-bowl-hot"></i>
+            <h3>오늘 뭐 먹지?</h3>
+            <p>기분, 시간대, 매운맛 선호, 냉장고 재료까지 반영합니다.</p>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="feature-card accent-fashion">
+            <i class="bi bi-stars"></i>
+            <h3>오늘 뭐 입지?</h3>
+            <p>온도, 날씨, 스타일, 퍼스널 컬러 기반 코디를 제안합니다.</p>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="feature-card accent-content">
+            <i class="bi bi-play-circle"></i>
+            <h3>오늘 뭐 보지?</h3>
+            <p>웹툰, 영화, 드라마, 유튜브를 장르 취향으로 큐레이션합니다.</p>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="feature-card accent-activity">
+            <i class="bi bi-compass"></i>
+            <h3>오늘 뭐 하지?</h3>
+            <p>실내외, 에너지, 혼자/함께 여부에 맞춰 활동을 골라줍니다.</p>
+        </div>
+    </div>
+</section>
+
+<section class="row g-4">
+    <div class="col-lg-7">
+        <div class="card-surface">
+            <span class="eyebrow">Why it feels like a real product</span>
+            <h2 class="h3 mt-2 mb-3">단순 추천 앱이 아니라 하루의 선택 흐름을 연결합니다.</h2>
+            <ul class="list-unstyled stacked-list mb-0">
+                <li>대시보드에서 음식, 패션, 콘텐츠, 활동이 한 번에 보입니다.</li>
+                <li>프로필에 저장한 취향이 모든 추천 로직에 공통으로 반영됩니다.</li>
+                <li>추천 히스토리와 VS 퀴즈로 데모 시연 포인트를 확보했습니다.</li>
+                <li>Google Trends 대체 구조를 넣어 외부 API로 교체 가능한 형태를 유지했습니다.</li>
+            </ul>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card-surface h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0">오늘의 트렌드 샘플</h2>
+                <span class="capsule-chip">Google Trends fallback</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                {% for trend in trends %}
+                <span class="trend-chip">#{{ trend.keyword }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

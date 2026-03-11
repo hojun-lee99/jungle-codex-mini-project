@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}VS Quiz | WhatShouldI{% endblock %}
+{% block content %}
+<section class="page-header-block">
+    <span class="eyebrow">Fun Layer</span>
+    <h1 class="display-6 fw-bold mt-2">VS 퀴즈</h1>
+    <p class="text-muted">재미 요소이지만 추천 UX를 방해하지 않도록 가볍게 배치했습니다. 선택 결과는 더미 베이스라인과 실제 로그를 합쳐 표시됩니다.</p>
+</section>
+
+<div class="row g-4">
+    {% for quiz in quiz_board %}
+    <div class="col-lg-4">
+        <div class="card-surface quiz-card" data-quiz-card="{{ quiz.id }}">
+            <span class="capsule-chip">{{ quiz.title }}</span>
+            <h2 class="h4 mt-3 mb-3">{{ quiz.prompt }}</h2>
+            <div class="d-grid gap-2 mb-4">
+                <button class="btn btn-outline-dark rounded-pill quiz-vote-btn" data-quiz-id="{{ quiz.id }}" data-choice="left">{{ quiz.left_label }}</button>
+                <button class="btn btn-outline-dark rounded-pill quiz-vote-btn" data-quiz-id="{{ quiz.id }}" data-choice="right">{{ quiz.right_label }}</button>
+            </div>
+            <div class="quiz-result" data-quiz-result="{{ quiz.id }}">
+                <div class="quiz-result-labels">
+                    <span>{{ quiz.result.left_label }} {{ quiz.result.left_rate }}%</span>
+                    <span>{{ quiz.result.right_label }} {{ quiz.result.right_rate }}%</span>
+                </div>
+                <div class="progress rounded-pill" style="height: 12px;">
+                    <div class="progress-bar bg-dark" role="progressbar" style="width: {{ quiz.result.left_rate }}%"></div>
+                    <div class="progress-bar bg-warning" role="progressbar" style="width: {{ quiz.result.right_rate }}%"></div>
+                </div>
+                <p class="text-muted small mt-3 mb-0">누적 투표 {{ quiz.result.left_votes + quiz.result.right_votes }}건</p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

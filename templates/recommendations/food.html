@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}음식 추천 | WhatShouldI{% endblock %}
+{% block content %}
+<section class="page-header-block">
+    <span class="eyebrow">Food Recommender</span>
+    <h1 class="display-6 fw-bold mt-2">오늘 뭐 먹지?</h1>
+    <p class="text-muted">기분, 시간대, 매운 음식 여부, 냉장고 재료를 기반으로 오늘의 메뉴를 고릅니다.</p>
+</section>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card-surface">
+            <form method="post" class="vstack gap-3">
+                <div>
+                    <label class="form-label">선호 음식 / 태그</label>
+                    <input type="text" name="favorites" class="form-control" value="{{ form_values.favorites }}" placeholder="예: 한식, 면, 집밥">
+                </div>
+                <div>
+                    <label class="form-label">못 먹는 음식 / 재료</label>
+                    <input type="text" name="dislikes" class="form-control" value="{{ form_values.dislikes }}" placeholder="예: 해산물, 고수">
+                </div>
+                <div>
+                    <label class="form-label">지금 가진 재료</label>
+                    <textarea name="ingredients" class="form-control" rows="3" placeholder="예: 계란, 양파, 밥">{{ form_values.ingredients }}</textarea>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">현재 기분</label>
+                        <select name="mood" class="form-select">
+                            <option value="comfort" {% if form_values.mood == 'comfort' %}selected{% endif %}>편안한 위로</option>
+                            <option value="reward" {% if form_values.mood == 'reward' %}selected{% endif %}>보상 심리</option>
+                            <option value="focus" {% if form_values.mood == 'focus' %}selected{% endif %}>집중하고 싶음</option>
+                            <option value="stress" {% if form_values.mood == 'stress' %}selected{% endif %}>스트레스 해소</option>
+                            <option value="refresh" {% if form_values.mood == 'refresh' %}selected{% endif %}>산뜻하게 먹기</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">시간대</label>
+                        <select name="time_slot" class="form-select">
+                            <option value="breakfast" {% if form_values.time_slot == 'breakfast' %}selected{% endif %}>아침</option>
+                            <option value="lunch" {% if form_values.time_slot == 'lunch' %}selected{% endif %}>점심</option>
+                            <option value="dinner" {% if form_values.time_slot == 'dinner' %}selected{% endif %}>저녁</option>
+                            <option value="late-night" {% if form_values.time_slot == 'late-night' %}selected{% endif %}>야식</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">매운 음식 선호</label>
+                    <select name="spicy" class="form-select">
+                        <option value="any" {% if form_values.spicy == 'any' %}selected{% endif %}>상관없음</option>
+                        <option value="yes" {% if form_values.spicy == 'yes' %}selected{% endif %}>매운 음식 좋아함</option>
+                        <option value="no" {% if form_values.spicy == 'no' %}selected{% endif %}>맵지 않은 음식 선호</option>
+                    </select>
+                </div>
+                <button class="btn btn-dark rounded-pill btn-lg">음식 추천 다시 받기</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        {% include "components/recommendation_result.html" %}
+    </div>
+</div>
+{% endblock %}

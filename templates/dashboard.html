@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | WhatShouldI{% endblock %}
+{% block content %}
+<section class="hero-panel mb-4">
+    <div class="row g-4 align-items-center">
+        <div class="col-lg-8">
+            <span class="eyebrow">Your daily lifestyle dashboard</span>
+            <h1 class="display-6 fw-bold mt-3 mb-3">{{ current_user.name }}님, {{ current_time_slot_label }} 선택부터 정리해볼까요?</h1>
+            <p class="lead text-muted mb-4">취향 프로필, 날씨, 트렌드, 최근 기록을 섞어서 오늘의 4가지 추천을 만들었습니다.</p>
+            <div class="d-flex flex-wrap gap-2">
+                <span class="capsule-chip">{{ weather.city }} {{ weather.temperature }}°C</span>
+                <span class="capsule-chip">{{ weather.label }}</span>
+                <span class="capsule-chip">음식 취향 {{ profile.food.favorites|length }}개 반영</span>
+                <span class="capsule-chip">최근 히스토리 {{ recent_history|length }}건</span>
+                {% if profile.personality.survey_complete %}
+                <span class="capsule-chip">MBTI {{ profile.personality.mbti }}</span>
+                <span class="capsule-chip">{{ profile.personality.archetype }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card-surface tone-mix h-100">
+                <h2 class="h5 mb-3">오늘의 흐름</h2>
+                <div class="mini-timeline">
+                    <div><strong>Eat</strong><span>{{ cards[0].result.top_pick.name }}</span></div>
+                    <div><strong>Wear</strong><span>{{ cards[1].result.top_pick.name }}</span></div>
+                    <div><strong>Watch</strong><span>{{ cards[2].result.top_pick.name }}</span></div>
+                    <div><strong>Do</strong><span>{{ cards[3].result.top_pick.name }}</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="row g-4 mb-4">
+    {% for card in cards %}
+    <div class="col-md-6">
+        <a href="{{ card.link }}" class="dashboard-link">
+            <div class="feature-card dashboard-card {{ card.accent }} stagger-{{ loop.index }}">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <div class="icon-wrap"><i class="{{ card.icon }}"></i></div>
+                        <h2 class="h4 mt-3">{{ card.title }}</h2>
+                    </div>
+                    <span class="score-pill compact">
+                        <small>score</small>
+                        <strong>{{ card.result.top_pick.score }}</strong>
+                    </span>
+                </div>
+                <h3 class="h5 mb-2">{{ card.result.top_pick.name }}</h3>
+                <p class="text-muted mb-3">{{ card.result.top_pick.description }}</p>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    {% for reason in card.result.top_pick.reasons[:3] %}
+                    <span class="trend-chip">{{ reason }}</span>
+                    {% endfor %}
+                </div>
+                <span class="inline-link">상세 추천 보기 <i class="bi bi-arrow-right-short"></i></span>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</section>
+
+<section class="row g-4">
+    <div class="col-lg-12">
+        <div class="card-surface mb-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+                <div>
+                    <h2 class="h5 mb-2">자동 추천에 반영되는 성향 분석</h2>
+                    {% if profile.personality.survey_complete %}
+                    <p class="text-muted mb-0">{{ profile.personality.insights[1] if profile.personality.insights|length > 1 else profile.personality.insights[0] }}</p>
+                    {% else %}
+                    <p class="text-muted mb-0">MBTI와 심리형 설문을 완료하면 직접 입력하지 않은 취향까지 자동으로 보정됩니다.</p>
+                    {% endif %}
+                </div>
+                <div class="align-self-lg-center">
+                    <a href="{{ url_for('profile.survey') }}" class="btn btn-outline-dark rounded-pill px-4">
+                        {% if profile.personality.survey_complete %}설문 다시 보기{% else %}심리 설문 시작{% endif %}
+                    </a>
+                </div>
+            </div>
+            {% if profile.personality.survey_complete %}
+            <div class="row g-3 mt-2">
+                {% for trait in profile.personality.dominant_trait_cards %}
+                <div class="col-md-4">
+                    <div class="trait-score-card">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>{{ trait.label }}</strong>
+                            <span>{{ trait.score }}</span>
+                        </div>
+                        <p class="text-muted small mb-0 mt-2">{{ trait.description }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card-surface h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0">실시간 반영되는 트렌드 키워드</h2>
+                <a href="{{ url_for('recommendations.trends') }}" class="text-decoration-none">더 보기</a>
+            </div>
+            <div class="row g-3">
+                {% for trend in trends %}
+                <div class="col-md-6">
+                    <div class="trend-row">
+                        <div>
+                            <strong>#{{ trend.keyword }}</strong>
+                            <p class="mb-0 text-muted">{{ trend.headline }}</p>
+                        </div>
+                        <span class="trend-score">{{ trend.score }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card-surface h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0">최근 추천 5개</h2>
+                <a href="{{ url_for('recommendations.history') }}" class="text-decoration-none">히스토리</a>
+            </div>
+            <div class="vstack gap-3">
+                {% for entry in recent_history %}
+                <div class="alt-item">
+                    <div>
+                        <span class="capsule-chip mb-2">{{ entry.category_label }}</span>
+                        <strong class="d-block">{{ entry.recommendation.name }}</strong>
+                        <p class="mb-0 text-muted">{{ entry.recommendation.description }}</p>
+                    </div>
+                    <small class="text-muted">{{ entry.created_label }}</small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

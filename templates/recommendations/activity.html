@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}활동 추천 | WhatShouldI{% endblock %}
+{% block content %}
+<section class="page-header-block">
+    <span class="eyebrow">Activity Recommender</span>
+    <h1 class="display-6 fw-bold mt-2">오늘 뭐 하지?</h1>
+    <p class="text-muted">실내/실외, 에너지 상태, 함께할 사람, 예산을 기준으로 오늘의 활동을 추천합니다.</p>
+</section>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card-surface">
+            <div class="capsule-chip mb-3">현재 날씨 {{ weather.condition }} · {{ weather.temperature }}°C</div>
+            <form method="post" class="vstack gap-3">
+                <div>
+                    <label class="form-label">실내 / 실외</label>
+                    <select name="indoor_outdoor" class="form-select">
+                        <option value="mixed" {% if form_values.indoor_outdoor == 'mixed' %}selected{% endif %}>상관없음</option>
+                        <option value="indoor" {% if form_values.indoor_outdoor == 'indoor' %}selected{% endif %}>실내 선호</option>
+                        <option value="outdoor" {% if form_values.indoor_outdoor == 'outdoor' %}selected{% endif %}>실외 선호</option>
+                    </select>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">에너지 수준</label>
+                        <select name="energy" class="form-select">
+                            <option value="low" {% if form_values.energy == 'low' %}selected{% endif %}>낮음</option>
+                            <option value="medium" {% if form_values.energy == 'medium' %}selected{% endif %}>보통</option>
+                            <option value="high" {% if form_values.energy == 'high' %}selected{% endif %}>높음</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">함께 / 혼자</label>
+                        <select name="social" class="form-select">
+                            <option value="solo" {% if form_values.social == 'solo' %}selected{% endif %}>혼자</option>
+                            <option value="group" {% if form_values.social == 'group' %}selected{% endif %}>함께</option>
+                            <option value="either" {% if form_values.social == 'either' %}selected{% endif %}>상관없음</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">예산</label>
+                    <select name="budget" class="form-select">
+                        <option value="low" {% if form_values.budget == 'low' %}selected{% endif %}>낮음</option>
+                        <option value="medium" {% if form_values.budget == 'medium' %}selected{% endif %}>보통</option>
+                        <option value="high" {% if form_values.budget == 'high' %}selected{% endif %}>여유 있음</option>
+                    </select>
+                </div>
+                <button class="btn btn-dark rounded-pill btn-lg">활동 추천 다시 받기</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        {% include "components/recommendation_result.html" %}
+    </div>
+</div>
+{% endblock %}

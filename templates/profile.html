@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}프로필 | WhatShouldI{% endblock %}
+{% block content %}
+<section class="page-header-block">
+    <span class="eyebrow">Taste Profile</span>
+    <h1 class="display-6 fw-bold mt-2">추천 기준이 되는 내 취향 저장</h1>
+    <p class="text-muted">이 페이지의 명시적 취향과 심리 설문 결과가 함께 대시보드와 모든 추천 페이지에 반영됩니다.</p>
+</section>
+
+<div class="card-surface mb-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+        <div>
+            <span class="eyebrow">Personality Layer</span>
+            <h2 class="h3 mt-2 mb-2">
+                {% if profile.personality.survey_complete %}
+                {{ profile.personality.archetype }} · {{ profile.personality.mbti }}
+                {% else %}
+                아직 심리 분석 전
+                {% endif %}
+            </h2>
+            <p class="text-muted mb-0">
+                {% if profile.personality.survey_complete %}
+                {{ profile.personality.insights[0] }}
+                {% else %}
+                MBTI와 고차원 설문을 입력하면 명시적으로 적지 않은 취향까지 자동 보정합니다.
+                {% endif %}
+            </p>
+        </div>
+        <div class="align-self-lg-center">
+            <a href="{{ url_for('profile.survey') }}" class="btn btn-dark rounded-pill px-4">심리 설문 열기</a>
+        </div>
+    </div>
+
+    {% if profile.personality.survey_complete %}
+    <div class="row g-3 mt-2">
+        {% for trait in profile.personality.dominant_trait_cards %}
+        <div class="col-md-4">
+            <div class="trait-score-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <strong>{{ trait.label }}</strong>
+                    <span>{{ trait.score }}</span>
+                </div>
+                <p class="text-muted small mb-0 mt-2">{{ trait.description }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<form method="post" class="vstack gap-4">
+    <div class="card-surface">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h4 mb-0">음식 취향</h2>
+            <span class="capsule-chip">Food</span>
+        </div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">선호 음식</label>
+                <input type="text" name="food_favorites" class="form-control" value="{{ profile.food.favorites_text }}" placeholder="예: 한식, 면, 집밥">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">못 먹는 음식</label>
+                <input type="text" name="food_dislikes" class="form-control" value="{{ profile.food.dislikes_text }}" placeholder="예: 고수, 해산물">
+            </div>
+            <div class="col-md-8">
+                <label class="form-label">자주 가진 재료</label>
+                <input type="text" name="food_ingredients" class="form-control" value="{{ profile.food.available_ingredients_text }}" placeholder="예: 계란, 양파, 밥">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">매운 음식 선호</label>
+                <select name="food_spice" class="form-select">
+                    <option value="any" {% if profile.food.spice == 'any' %}selected{% endif %}>상관없음</option>
+                    <option value="yes" {% if profile.food.spice == 'yes' %}selected{% endif %}>좋아함</option>
+                    <option value="no" {% if profile.food.spice == 'no' %}selected{% endif %}>안 좋아함</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-surface">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h4 mb-0">패션 취향</h2>
+            <span class="capsule-chip">Fashion</span>
+        </div>
+        <div class="row g-3">
+            <div class="col-md-5">
+                <label class="form-label">스타일</label>
+                <input type="text" name="fashion_styles" class="form-control" value="{{ profile.fashion.styles_text }}" placeholder="예: 캐주얼, 미니멀">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">선호 컬러</label>
+                <input type="text" name="fashion_colors" class="form-control" value="{{ profile.fashion.colors_text }}" placeholder="예: 블랙, 크림">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">퍼스널 컬러</label>
+                <select name="fashion_personal_color" class="form-select">
+                    {% for option in ['spring warm', 'summer cool', 'autumn warm', 'winter cool'] %}
+                    <option value="{{ option }}" {% if profile.fashion.personal_color == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-surface">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h4 mb-0">콘텐츠 취향</h2>
+            <span class="capsule-chip">Content</span>
+        </div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">선호 장르</label>
+                <input type="text" name="content_genres" class="form-control" value="{{ profile.content.genres_text }}" placeholder="예: 로맨스, 판타지">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">선호 플랫폼</label>
+                <input type="text" name="content_platforms" class="form-control" value="{{ profile.content.platforms_text }}" placeholder="예: 웹툰, 유튜브">
+            </div>
+        </div>
+    </div>
+
+    <div class="card-surface">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h4 mb-0">활동 취향</h2>
+            <span class="capsule-chip">Activity</span>
+        </div>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">실내 / 실외</label>
+                <select name="activity_indoor_outdoor" class="form-select">
+                    <option value="mixed" {% if profile.activity.indoor_outdoor == 'mixed' %}selected{% endif %}>상관없음</option>
+                    <option value="indoor" {% if profile.activity.indoor_outdoor == 'indoor' %}selected{% endif %}>실내</option>
+                    <option value="outdoor" {% if profile.activity.indoor_outdoor == 'outdoor' %}selected{% endif %}>실외</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">에너지</label>
+                <select name="activity_energy" class="form-select">
+                    <option value="low" {% if profile.activity.energy == 'low' %}selected{% endif %}>낮음</option>
+                    <option value="medium" {% if profile.activity.energy == 'medium' %}selected{% endif %}>보통</option>
+                    <option value="high" {% if profile.activity.energy == 'high' %}selected{% endif %}>높음</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">혼자 / 함께</label>
+                <select name="activity_social" class="form-select">
+                    <option value="solo" {% if profile.activity.social == 'solo' %}selected{% endif %}>혼자</option>
+                    <option value="group" {% if profile.activity.social == 'group' %}selected{% endif %}>함께</option>
+                    <option value="either" {% if profile.activity.social == 'either' %}selected{% endif %}>상관없음</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">예산</label>
+                <select name="activity_budget" class="form-select">
+                    <option value="low" {% if profile.activity.budget == 'low' %}selected{% endif %}>낮음</option>
+                    <option value="medium" {% if profile.activity.budget == 'medium' %}selected{% endif %}>보통</option>
+                    <option value="high" {% if profile.activity.budget == 'high' %}selected{% endif %}>여유 있음</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end">
+        <button class="btn btn-dark btn-lg rounded-pill px-4">프로필 저장</button>
+    </div>
+</form>
+{% endblock %}

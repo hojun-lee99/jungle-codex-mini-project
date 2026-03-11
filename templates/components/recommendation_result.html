@@ -1,0 +1,41 @@
+<div class="card-surface result-panel">
+    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <span class="capsule-chip">Top Pick</span>
+            <h2 class="h3 mt-3 mb-2">{{ result.top_pick.name }}</h2>
+            <p class="text-muted mb-0">{{ result.top_pick.description }}</p>
+        </div>
+        <div class="score-pill">
+            <small>score</small>
+            <strong>{{ result.top_pick.score }}</strong>
+        </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        {% for reason in result.top_pick.reasons[:4] %}
+        <span class="trend-chip">{{ reason }}</span>
+        {% endfor %}
+    </div>
+
+    <div class="detail-grid mb-4">
+        {% for meta in result.top_pick.meta %}
+        <div>{{ meta }}</div>
+        {% endfor %}
+    </div>
+
+    <div class="divider-label">다른 후보</div>
+    <div class="vstack gap-3">
+        {% for item in result.alternatives %}
+        <div class="alt-item">
+            <div>
+                <strong>{{ item.name }}</strong>
+                <p class="mb-0 text-muted">{{ item.description }}</p>
+            </div>
+            <div class="text-end">
+                <div class="fw-bold">{{ item.score }}</div>
+                <small class="text-muted">{{ item.reason_text }}</small>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>

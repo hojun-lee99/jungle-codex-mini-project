@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}콘텐츠 추천 | WhatShouldI{% endblock %}
+{% block content %}
+<section class="page-header-block">
+    <span class="eyebrow">Content Recommender</span>
+    <h1 class="display-6 fw-bold mt-2">오늘 뭐 보지?</h1>
+    <p class="text-muted">웹툰, 영화, 유튜브, 드라마 중에서 지금 무드와 장르 취향에 맞는 콘텐츠를 골라줍니다.</p>
+</section>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card-surface">
+            <form method="post" class="vstack gap-3">
+                <div>
+                    <label class="form-label">장르 취향</label>
+                    <input type="text" name="genres" class="form-control" value="{{ form_values.genres }}" placeholder="예: 판타지, 로맨스, 스릴러">
+                </div>
+                <div>
+                    <label class="form-label">선호 플랫폼</label>
+                    <input type="text" name="platforms" class="form-control" value="{{ form_values.platforms }}" placeholder="예: 웹툰, 영화, 유튜브">
+                </div>
+                <div>
+                    <label class="form-label">현재 무드</label>
+                    <select name="mood" class="form-select">
+                        <option value="light" {% if form_values.mood == 'light' %}selected{% endif %}>가볍게 보고 싶음</option>
+                        <option value="comfort" {% if form_values.mood == 'comfort' %}selected{% endif %}>편안한 힐링</option>
+                        <option value="focus" {% if form_values.mood == 'focus' %}selected{% endif %}>몰입하고 싶음</option>
+                        <option value="adventure" {% if form_values.mood == 'adventure' %}selected{% endif %}>새로운 자극</option>
+                        <option value="dark" {% if form_values.mood == 'dark' %}selected{% endif %}>텐션 높은 분위기</option>
+                    </select>
+                </div>
+                <button class="btn btn-dark rounded-pill btn-lg">콘텐츠 추천 다시 받기</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        {% include "components/recommendation_result.html" %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}로그인 | WhatShouldI{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-5">
+        <div class="card-surface auth-card">
+            <span class="eyebrow">Welcome back</span>
+            <h1 class="h2 mt-2 mb-3">오늘의 대시보드로 돌아가기</h1>
+            <p class="text-muted mb-4">WhatShouldI는 하루의 선택을 한 번에 정리해줍니다.</p>
+            <form method="post" class="vstack gap-3">
+                <input type="hidden" name="next" value="{{ next_url or url_for('main.dashboard') }}">
+                <div>
+                    <label class="form-label">이메일</label>
+                    <input type="email" name="email" class="form-control form-control-lg" placeholder="you@example.com" required>
+                </div>
+                <div>
+                    <label class="form-label">비밀번호</label>
+                    <input type="password" name="password" class="form-control form-control-lg" placeholder="6자 이상" required>
+                </div>
+                <button class="btn btn-dark btn-lg rounded-pill">로그인</button>
+            </form>
+            <p class="mt-4 mb-0 text-muted">아직 계정이 없다면 <a href="{{ url_for('auth.register') }}">회원가입</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
