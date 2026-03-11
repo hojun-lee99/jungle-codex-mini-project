@@ -42,6 +42,7 @@ h1, h2, h3, h4, h5, .navbar-brand strong {
     display: block;
     width: auto;
     height: 44px;
+    object-fit: contain;
 }
 
 .nav-link {
