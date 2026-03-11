@@ -1,7 +1,0 @@
-{
-  "required_fields": ["issue_date", "organization"],
-  "max_absence_days": 14,
-  "max_issue_age_days": 90,
-  "minimum_confidence_for_auto_approval": 0.7
-}
-

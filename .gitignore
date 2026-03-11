@@ -1,6 +1,0 @@
-project/.env
-project/.venv/
-project/uploads/*
-!project/uploads/.gitkeep
-.DS_Store
-
