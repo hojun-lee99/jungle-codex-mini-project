@@ -2,6 +2,7 @@ import html
 import re
 from datetime import datetime, timedelta
 from html.parser import HTMLParser
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from db.mongo import get_collection
@@ -304,6 +305,128 @@ def _slugify(value):
     return slug.strip("-")
 
 
+def _visual_palette(item):
+    provider = (item.get("provider") or "").lower()
+    content_type = (item.get("content_type") or "").lower()
+
+    if item.get("source") == "netflix_tudum" or provider == "netflix":
+        return {
+            "start": "#250909",
+            "mid": "#7f1018",
+            "end": "#f04452",
+            "accent": "#ffd6db",
+            "label": "NETFLIX",
+        }
+    if "웹툰" in content_type:
+        return {
+            "start": "#072f1f",
+            "mid": "#0d7a4b",
+            "end": "#91f6b8",
+            "accent": "#d7ffe7",
+            "label": "WEBTOON",
+        }
+    if "영상" in content_type or provider == "youtube":
+        return {
+            "start": "#171717",
+            "mid": "#6d1117",
+            "end": "#ff6b6b",
+            "accent": "#ffe0e0",
+            "label": "VIDEO",
+        }
+    if "시리즈" in content_type:
+        return {
+            "start": "#0f172a",
+            "mid": "#205375",
+            "end": "#8cc7df",
+            "accent": "#dff6ff",
+            "label": "SERIES",
+        }
+    return {
+        "start": "#221b14",
+        "mid": "#8c6239",
+        "end": "#f0d7a1",
+        "accent": "#fff2d6",
+        "label": "FEATURE",
+    }
+
+
+def _wrap_poster_title(title, limit=14, lines=3):
+    words = title.split()
+    if not words:
+        return [title[:limit]]
+    if len(words) == 1 and len(title) > limit:
+        sliced = [title[index:index + limit] for index in range(0, len(title), limit)]
+        if len(sliced) > lines:
+            sliced = sliced[:lines]
+            sliced[-1] = f"{sliced[-1][: max(0, limit - 1)]}…"
+        return sliced
+
+    wrapped = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if current and len(candidate) > limit:
+            wrapped.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        wrapped.append(current)
+
+    if len(wrapped) <= lines:
+        return wrapped
+
+    visible = wrapped[:lines]
+    visible[-1] = f"{visible[-1][: max(0, limit - 1)]}…"
+    return visible
+
+
+def _build_svg_poster(item):
+    palette = _visual_palette(item)
+    title_lines = _wrap_poster_title(item["name"])
+    provider_text = html.escape((item.get("provider") or "").upper()[:18])
+    type_text = html.escape((item.get("content_type") or "").upper()[:16])
+    accent = palette["accent"]
+
+    title_nodes = []
+    start_y = 152
+    for index, line in enumerate(title_lines[:3]):
+        safe_line = html.escape(line)
+        y = start_y + (index * 22)
+        title_nodes.append(
+            f"<text x='22' y='{y}' fill='white' font-size='20' font-family='Arial, sans-serif' font-weight='700'>{safe_line}</text>"
+        )
+
+    svg = (
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 420'>"
+        "<defs>"
+        f"<linearGradient id='poster-base' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='{palette['start']}'/>"
+        f"<stop offset='52%' stop-color='{palette['mid']}'/><stop offset='100%' stop-color='{palette['end']}'/></linearGradient>"
+        f"<linearGradient id='poster-bg' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='{accent}' stop-opacity='0.15'/>"
+        "<stop offset='100%' stop-color='#ffffff' stop-opacity='0'/></linearGradient>"
+        "</defs>"
+        "<rect width='320' height='420' rx='30' fill='url(#poster-base)'/>"
+        "<circle cx='266' cy='76' r='92' fill='url(#poster-bg)' opacity='0.9'/>"
+        "<rect x='22' y='24' width='124' height='30' rx='15' fill='rgba(255,255,255,0.16)'/>"
+        f"<text x='36' y='44' fill='{accent}' font-size='14' font-family='Arial, sans-serif' font-weight='700'>{palette['label']}</text>"
+        "<rect x='22' y='70' width='276' height='238' rx='24' fill='rgba(10,10,10,0.18)' stroke='rgba(255,255,255,0.22)'/>"
+        "<path d='M48 284 L92 214 L132 248 L186 160 L252 248 L280 206 L280 310 L48 310 Z' fill='rgba(255,255,255,0.18)'/>"
+        "<circle cx='94' cy='144' r='24' fill='rgba(255,255,255,0.18)'/>"
+        f"{''.join(title_nodes)}"
+        f"<text x='22' y='364' fill='{accent}' font-size='13' font-family='Arial, sans-serif'>{provider_text}</text>"
+        f"<text x='22' y='389' fill='rgba(255,255,255,0.85)' font-size='15' font-family='Arial, sans-serif'>{type_text}</text>"
+        "</svg>"
+    )
+    return f"data:image/svg+xml;charset=UTF-8,{quote(svg)}"
+
+
+def _decorate_content_item(item):
+    decorated = dict(item)
+    decorated["image_url"] = decorated.get("image_url") or _build_svg_poster(decorated)
+    decorated["image_alt"] = decorated.get("image_alt") or f"{decorated['name']} 포스터"
+    return decorated
+
+
 class _VisibleTextHTMLParser(HTMLParser):
     BLOCK_TAGS = {
         "article",
@@ -520,7 +643,7 @@ def get_netflix_content(force_refresh=False):
     for source in NETFLIX_TUDUM_SOURCES:
         payload = cached_map.get(source["cache_key"])
         if payload:
-            items.extend(payload.get("items", []))
+            items.extend(_decorate_content_item(item) for item in payload.get("items", []))
     return items
 
 
@@ -539,7 +662,8 @@ def get_netflix_status():
 
 def get_content_inventory(force_refresh=False):
     netflix_items = get_netflix_content(force_refresh=force_refresh)
-    return LOCAL_CONTENT_LIBRARY + netflix_items
+    local_items = [_decorate_content_item(item) for item in LOCAL_CONTENT_LIBRARY]
+    return local_items + netflix_items
 
 
 def find_content_item(content_id, force_refresh=False):

@@ -4,8 +4,36 @@
 <section class="page-header-block">
     <span class="eyebrow">Trend Layer</span>
     <h1 class="display-6 fw-bold mt-2">인기 키워드와 추천 가중치</h1>
-    <p class="text-muted">현재는 샘플 데이터 기반이지만, Google Trends API 또는 별도 수집 파이프라인으로 교체할 수 있는 구조입니다.</p>
+    <p class="text-muted">Google Trends RSS 기준 최신 KR 트렌드를 가져와 추천 가중치에 반영합니다.</p>
 </section>
+
+<div class="card-surface tone-mix mb-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+        <div>
+            <span class="capsule-chip">{{ trend_status.source_label }}</span>
+            <h2 class="h4 mt-3 mb-2">실제 트렌드 데이터 상태</h2>
+            <p class="text-muted mb-0">
+                지역 {{ trend_status.region }}
+                ·
+                {% if trend_status.generated_at %}
+                {{ trend_status.generated_at.strftime('%Y-%m-%d %H:%M UTC') }}
+                {% else %}
+                캐시 준비 중
+                {% endif %}
+                ·
+                {% if trend_status.is_live %}
+                live
+                {% else %}
+                fallback
+                {% endif %}
+            </p>
+        </div>
+        <div class="align-self-lg-center d-flex flex-wrap gap-2">
+            <a href="{{ url_for('recommendations.trends', refresh=1) }}" class="btn btn-outline-dark rounded-pill px-4">트렌드 새로고침</a>
+            <a href="{{ trend_status.source_url }}" target="_blank" rel="noreferrer" class="btn btn-dark rounded-pill px-4">원본 소스 보기</a>
+        </div>
+    </div>
+</div>
 
 <div class="row g-4">
     {% for category, items in grouped_trends.items() %}
@@ -21,6 +49,9 @@
                     <div>
                         <strong>#{{ trend.keyword }}</strong>
                         <p class="mb-0 text-muted">{{ trend.headline }}</p>
+                        {% if trend.traffic %}
+                        <small class="text-muted">{{ trend.traffic }} searches</small>
+                        {% endif %}
                     </div>
                     <span class="trend-score">{{ trend.score }}</span>
                 </div>

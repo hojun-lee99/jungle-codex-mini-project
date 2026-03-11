@@ -371,6 +371,8 @@ def recommend_content(profile, form_input, trends=None, recent_history=None, fee
                 "signal_breakdown": [signal for signal in signal_breakdown if signal["score"] != 0],
                 "source": item.get("source", "curated"),
                 "source_url": item.get("source_url"),
+                "image_url": item.get("image_url"),
+                "image_alt": item.get("image_alt"),
                 "feedback_state": "like" if direct_feedback > 0 else "dislike" if direct_feedback < 0 else None,
                 "stats": item.get("stats"),
             }

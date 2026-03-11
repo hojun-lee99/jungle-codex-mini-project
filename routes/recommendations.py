@@ -12,7 +12,7 @@ from services.recommender import (
     recommend_fashion,
     recommend_food,
 )
-from services.trends import build_quiz_board, get_trends_by_category, record_quiz_vote
+from services.trends import build_quiz_board, get_trend_status, get_trends_by_category, record_quiz_vote
 from services.weather import get_weather_snapshot
 from utils import get_time_slot, login_required, parse_csv
 
@@ -27,7 +27,7 @@ def food():
     profile = get_profile(user_id)
     working_profile = deepcopy(profile)
     recent_history = get_recent_history(user_id, limit=12)
-    trends = get_trends_by_category()["food"]
+    trends = get_trends_by_category(region=current_app.config["DEFAULT_REGION"])["food"]
 
     form_values = {
         "favorites": request.form.get("favorites", profile["food"]["favorites_text"]),
@@ -76,7 +76,7 @@ def fashion():
     profile = get_profile(user_id)
     working_profile = deepcopy(profile)
     recent_history = get_recent_history(user_id, limit=12)
-    trends = get_trends_by_category()["fashion"]
+    trends = get_trends_by_category(region=current_app.config["DEFAULT_REGION"])["fashion"]
 
     weather = get_weather_snapshot(
         city=current_app.config["DEFAULT_CITY"],
@@ -130,7 +130,7 @@ def content():
     profile = get_profile(user_id)
     working_profile = deepcopy(profile)
     recent_history = get_recent_history(user_id, limit=12)
-    trends = get_trends_by_category()["content"]
+    trends = get_trends_by_category(region=current_app.config["DEFAULT_REGION"])["content"]
     feedback_profile = get_content_feedback_profile(user_id)
     force_refresh = request.args.get("refresh") == "1"
 
@@ -182,7 +182,7 @@ def activity():
     profile = get_profile(user_id)
     working_profile = deepcopy(profile)
     recent_history = get_recent_history(user_id, limit=12)
-    grouped_trends = get_trends_by_category()
+    grouped_trends = get_trends_by_category(region=current_app.config["DEFAULT_REGION"])
     weather = get_weather_snapshot(city=current_app.config["DEFAULT_CITY"])
 
     form_values = {
@@ -217,8 +217,10 @@ def activity():
 @recommendation_bp.route("/trends")
 @login_required
 def trends():
-    grouped_trends = get_trends_by_category()
-    return render_template("trends.html", grouped_trends=grouped_trends)
+    region = current_app.config["DEFAULT_REGION"]
+    force_refresh = request.args.get("refresh") == "1"
+    grouped_trends = get_trends_by_category(region=region, force_refresh=force_refresh)
+    return render_template("trends.html", grouped_trends=grouped_trends, trend_status=get_trend_status(region=region))
 
 
 @recommendation_bp.route("/quiz")

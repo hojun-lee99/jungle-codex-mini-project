@@ -243,6 +243,10 @@ h1, h2, h3, h4, h5, .navbar-brand strong {
     grid-template-columns: repeat(2, 1fr);
 }
 
+.content-feed-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .signal-card,
 .feed-card {
     padding: 1rem 1.1rem;
@@ -256,6 +260,73 @@ h1, h2, h3, h4, h5, .navbar-brand strong {
     justify-content: space-between;
     gap: 1rem;
     align-items: center;
+}
+
+.content-hero {
+    display: grid;
+    grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.content-hero-poster,
+.feed-poster,
+.trend-thumb {
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+    background: rgba(17, 24, 39, 0.08);
+}
+
+.content-hero-poster {
+    aspect-ratio: 3 / 4;
+    box-shadow: 0 18px 40px rgba(17, 24, 39, 0.18);
+}
+
+.content-hero-poster img,
+.feed-poster img,
+.trend-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.content-hero-body {
+    min-width: 0;
+}
+
+.feed-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.feed-poster {
+    aspect-ratio: 4 / 5;
+}
+
+.feed-score {
+    position: absolute;
+    right: 0.9rem;
+    top: 0.9rem;
+    background: rgba(17, 24, 39, 0.78);
+    color: white;
+    backdrop-filter: blur(8px);
+}
+
+.trend-media-row {
+    gap: 0.9rem;
+}
+
+.trend-thumb {
+    width: 88px;
+    min-width: 88px;
+    aspect-ratio: 3 / 4;
+    border-radius: 18px;
+}
+
+.trend-copy {
+    min-width: 0;
 }
 
 .active-feedback {
@@ -427,6 +498,15 @@ h1, h2, h3, h4, h5, .navbar-brand strong {
     .signal-grid {
         grid-template-columns: 1fr;
     }
+
+    .content-feed-grid,
+    .content-hero {
+        grid-template-columns: 1fr;
+    }
+
+    .content-hero-poster {
+        max-width: 240px;
+    }
 }
 
 @media (max-width: 575px) {
@@ -443,5 +523,14 @@ h1, h2, h3, h4, h5, .navbar-brand strong {
 
     .likert-grid {
         grid-template-columns: 1fr;
+    }
+
+    .content-feed-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .trend-thumb {
+        width: 72px;
+        min-width: 72px;
     }
 }

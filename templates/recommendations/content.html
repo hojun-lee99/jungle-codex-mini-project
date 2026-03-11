@@ -73,46 +73,53 @@
 <div class="row g-4">
     <div class="col-lg-7">
         <div class="card-surface result-panel mb-4">
-            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-                <div>
-                    <span class="capsule-chip">Top Pick</span>
-                    <h2 class="h3 mt-3 mb-2">{{ result.top_pick.name }}</h2>
-                    <p class="text-muted mb-0">{{ result.top_pick.description }}</p>
+            <div class="content-hero">
+                <div class="content-hero-poster">
+                    <img src="{{ result.top_pick.image_url }}" alt="{{ result.top_pick.image_alt }}" loading="lazy">
                 </div>
-                <div class="score-pill">
-                    <small>score</small>
-                    <strong>{{ result.top_pick.score }}</strong>
+                <div class="content-hero-body">
+                    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                        <div>
+                            <span class="capsule-chip">Top Pick</span>
+                            <h2 class="h3 mt-3 mb-2">{{ result.top_pick.name }}</h2>
+                            <p class="text-muted mb-0">{{ result.top_pick.description }}</p>
+                        </div>
+                        <div class="score-pill">
+                            <small>score</small>
+                            <strong>{{ result.top_pick.score }}</strong>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        {% for reason in result.top_pick.reasons[:4] %}
+                        <span class="trend-chip">{{ reason }}</span>
+                        {% endfor %}
+                    </div>
+
+                    <div class="detail-grid mb-4">
+                        {% for meta in result.top_pick.meta %}
+                        <div>{{ meta }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="signal-grid mb-4">
+                        {% for signal in result.top_pick.signal_breakdown %}
+                        <div class="signal-card">
+                            <strong>{{ signal.label }}</strong>
+                            <span>{{ signal.score }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <button class="btn btn-outline-dark rounded-pill content-feedback-btn {% if result.top_pick.feedback_state == 'like' %}active-feedback{% endif %}" data-content-id="{{ result.top_pick.id }}" data-sentiment="like">좋아요</button>
+                        <button class="btn btn-outline-dark rounded-pill content-feedback-btn {% if result.top_pick.feedback_state == 'dislike' %}active-feedback{% endif %}" data-content-id="{{ result.top_pick.id }}" data-sentiment="dislike">싫어요</button>
+                        {% if result.top_pick.source == 'netflix_tudum' %}
+                        <span class="capsule-chip">Netflix Korea Movies Top 10</span>
+                        {% endif %}
+                        <span class="text-muted small feedback-message" data-feedback-message="{{ result.top_pick.id }}"></span>
+                    </div>
                 </div>
-            </div>
-
-            <div class="d-flex flex-wrap gap-2 mb-3">
-                {% for reason in result.top_pick.reasons[:4] %}
-                <span class="trend-chip">{{ reason }}</span>
-                {% endfor %}
-            </div>
-
-            <div class="detail-grid mb-4">
-                {% for meta in result.top_pick.meta %}
-                <div>{{ meta }}</div>
-                {% endfor %}
-            </div>
-
-            <div class="signal-grid mb-4">
-                {% for signal in result.top_pick.signal_breakdown %}
-                <div class="signal-card">
-                    <strong>{{ signal.label }}</strong>
-                    <span>{{ signal.score }}</span>
-                </div>
-                {% endfor %}
-            </div>
-
-            <div class="d-flex flex-wrap gap-2 align-items-center">
-                <button class="btn btn-outline-dark rounded-pill content-feedback-btn {% if result.top_pick.feedback_state == 'like' %}active-feedback{% endif %}" data-content-id="{{ result.top_pick.id }}" data-sentiment="like">좋아요</button>
-                <button class="btn btn-outline-dark rounded-pill content-feedback-btn {% if result.top_pick.feedback_state == 'dislike' %}active-feedback{% endif %}" data-content-id="{{ result.top_pick.id }}" data-sentiment="dislike">싫어요</button>
-                {% if result.top_pick.source == 'netflix_tudum' %}
-                <span class="capsule-chip">Netflix Korea Movies Top 10</span>
-                {% endif %}
-                <span class="text-muted small feedback-message" data-feedback-message="{{ result.top_pick.id }}"></span>
             </div>
         </div>
 
@@ -124,13 +131,12 @@
             <div class="content-feed-grid">
                 {% for item in result.feed[1:] %}
                 <article class="feed-card">
-                    <div class="d-flex justify-content-between gap-3 align-items-start mb-3">
-                        <div>
-                            <strong class="d-block">{{ item.name }}</strong>
-                            <small class="text-muted">{{ item.provider }} · {{ item.content_type }}</small>
-                        </div>
-                        <span class="trend-score">{{ item.score }}</span>
+                    <div class="feed-poster mb-3">
+                        <img src="{{ item.image_url }}" alt="{{ item.image_alt }}" loading="lazy">
+                        <span class="trend-score feed-score">{{ item.score }}</span>
                     </div>
+                    <strong class="d-block mb-1">{{ item.name }}</strong>
+                    <small class="text-muted d-block mb-3">{{ item.provider }} · {{ item.content_type }}</small>
                     <p class="text-muted small mb-3">{{ item.description }}</p>
                     <div class="d-flex flex-wrap gap-2 mb-3">
                         {% for genre in item.genres[:3] %}
@@ -157,8 +163,11 @@
             </div>
             <div class="vstack gap-3">
                 {% for item in result.netflix_now %}
-                <div class="trend-row">
-                    <div>
+                <div class="trend-row trend-media-row">
+                    <div class="trend-thumb">
+                        <img src="{{ item.image_url }}" alt="{{ item.image_alt }}" loading="lazy">
+                    </div>
+                    <div class="trend-copy">
                         <strong>{{ item.name }}</strong>
                         <p class="mb-0 text-muted small">
                             {{ item.content_type }} · {{ item.provider }}
