@@ -51,6 +51,7 @@ project/
 
 - 학생 문서 업로드: PDF, PNG, JPG, JPEG
 - OCR 추출: 전처리 + 방향 평가 + 핵심 영역 우선 OCR
+- OCR 백엔드 선택: `auto`, `tesseract`, `paddle`
 - 문서 파싱: OpenAI API 또는 휴리스틱 기반 구조화
 - 의료 영수증 / 결제내역서 인식: `medical_receipt` 유형 지원
 - 규칙 엔진: 날짜, 기관명, 기간 기준 자동 검증
@@ -97,6 +98,7 @@ project/
 - 상단 기관명, 고객 정보, 날짜/금액 영역을 전체 페이지보다 우선합니다.
 - 뒤집혀 읽힌 텍스트와 저품질 라인은 후처리에서 제거합니다.
 - OCR 자체는 외부 API 없이 로컬 Tesseract + OpenCV 전처리로 동작합니다.
+- PaddleOCR를 선택 설치하면 `auto` 모드에서 Paddle 후보와 Tesseract 후보를 함께 평가합니다.
 
 ## 6. 사전 준비
 
@@ -128,8 +130,21 @@ cp .env.example .env
 `.env`에서 필요한 값을 조정합니다.
 
 - `OPENAI_API_KEY`: 설정하면 LLM 파싱 사용
+- `OCR_BACKEND`: `auto`, `tesseract`, `paddle`
+- `OCR_PADDLE_LANGUAGE`: 기본 `korean`
 - `AUTO_DELETE_ORIGINAL=True`: 원본 파일과 OCR 원문을 저장하지 않음
 - `MONGO_URI`, `MONGO_DB_NAME`: MongoDB 연결 정보
+
+PaddleOCR를 쓰려면 추가 설치:
+
+```bash
+pip install -r requirements-paddle.txt
+```
+
+권장:
+- 기본 운영: `OCR_BACKEND=auto`
+- Paddle만 강제: `OCR_BACKEND=paddle`
+- 문제 진단용: `OCR_BACKEND=tesseract`
 
 ## 8. 로컬 실행 방법
 

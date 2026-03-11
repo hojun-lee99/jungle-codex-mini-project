@@ -8,6 +8,11 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     cv2 = None
     np = None
 
+try:
+    from paddleocr import PaddleOCR
+except ImportError:  # pragma: no cover - optional runtime dependency
+    PaddleOCR = None
+
 import pytesseract
 from pytesseract import Output
 from pdf2image import convert_from_path
@@ -60,10 +65,7 @@ def _normalize_ocr_line(line):
                 run.append(tokens[next_index])
                 next_index += 1
 
-            if len(run) >= 2:
-                merged_tokens.append("".join(run))
-            else:
-                merged_tokens.append(run[0])
+            merged_tokens.append("".join(run) if len(run) >= 2 else run[0])
             index = next_index
             continue
 
@@ -100,7 +102,6 @@ class OCRService:
 
     FULL_PAGE_CONFIG = "--oem 3 --psm 6 -c preserve_interword_spaces=1"
     SPARSE_CONFIG = "--oem 3 --psm 11 -c preserve_interword_spaces=1"
-    REGION_CONFIG = "--oem 3 --psm 6 -c preserve_interword_spaces=1"
     DENSE_REGION_CONFIG = "--oem 3 --psm 4 -c preserve_interword_spaces=1"
 
     CORE_KEYWORDS = [
@@ -193,9 +194,16 @@ class OCRService:
     )
     AMOUNT_PATTERN = re.compile(r"\d{1,3}(?:,\d{3})+|\d{4,}")
 
-    def __init__(self, language="kor+eng", max_pages=3):
+    def __init__(self, language="kor+eng", max_pages=3, backend="auto", paddle_language="korean"):
         self.language = language
         self.max_pages = max_pages
+        self.backend = (backend or "auto").lower()
+        self.paddle_language = paddle_language or self._map_tesseract_language_to_paddle(language)
+        self._paddle_engine = None
+        self._paddle_unavailable_reason = None
+
+        if self.backend not in {"auto", "tesseract", "paddle"}:
+            self.backend = "auto"
 
     def extract_text(self, file_path):
         path = Path(file_path)
@@ -246,53 +254,131 @@ class OCRService:
         for angle in self.ROTATION_CANDIDATES:
             oriented = base_image if angle == 0 else base_image.rotate(angle, expand=True)
             variants = self._build_variants(oriented)
-            full_page_candidate = self._select_best_full_page_candidate(variants, angle)
-            region_candidates = self._select_priority_region_candidates(variants, angle)
-            assembled_text = self._assemble_document_text(full_page_candidate, region_candidates)
-            assembled_score = self._score_text(
-                assembled_text,
-                full_page_candidate["avg_conf"],
-                region_name="document",
-            )
-            total_score = full_page_candidate["score"] + assembled_score
-            for region_name, candidate in region_candidates.items():
-                total_score += candidate["score"] * self.REGION_WEIGHTS.get(region_name, 1.0)
 
-            orientation_candidates.append(
-                {
-                    "angle": angle,
-                    "text": assembled_text,
-                    "score": total_score,
-                }
-            )
+            engine_candidates = []
+            if self.backend in {"auto", "tesseract"}:
+                engine_candidates.append(self._extract_with_tesseract_pipeline(variants, angle))
+            if self.backend in {"auto", "paddle"}:
+                paddle_candidate = self._extract_with_paddle_pipeline(variants, angle)
+                if paddle_candidate:
+                    engine_candidates.append(paddle_candidate)
+
+            best_engine_candidate = self._pick_best_candidate(engine_candidates)
+            if best_engine_candidate:
+                orientation_candidates.append(best_engine_candidate)
 
         best_candidate = self._pick_best_candidate(orientation_candidates)
         if best_candidate and best_candidate.get("text"):
             return best_candidate["text"]
 
+        if self.backend == "paddle":
+            reason = self._paddle_unavailable_reason or "PaddleOCR 엔진을 사용할 수 없습니다."
+            raise RuntimeError(f"{reason} PaddleOCR 관련 패키지 설치를 확인해 주세요.")
+
         fallback = self._build_variants(base_image)
-        return self._build_candidate(
+        return self._build_tesseract_candidate(
             fallback["enhanced"],
             self.FULL_PAGE_CONFIG,
             region_name="page",
             source="fallback",
         )["text"]
 
-    def _select_best_full_page_candidate(self, variants, angle):
+    def _extract_with_tesseract_pipeline(self, variants, angle):
+        full_page_candidate = self._select_best_tesseract_full_page_candidate(variants, angle)
+        region_candidates = self._select_priority_tesseract_region_candidates(variants, angle)
+        assembled_text = self._assemble_document_text(full_page_candidate, region_candidates)
+        assembled_score = self._score_text(
+            assembled_text,
+            full_page_candidate["avg_conf"],
+            region_name="document",
+        )
+        total_score = full_page_candidate["score"] + assembled_score
+        for region_name, candidate in region_candidates.items():
+            total_score += candidate["score"] * self.REGION_WEIGHTS.get(region_name, 1.0)
+
+        return {
+            "angle": angle,
+            "text": assembled_text,
+            "score": total_score,
+            "engine": "tesseract",
+        }
+
+    def _extract_with_paddle_pipeline(self, variants, angle):
+        paddle_engine = self._get_paddle_engine()
+        if paddle_engine is None:
+            return None
+
+        page_candidates = []
+        for variant_name in ("enhanced", "threshold", "line_removed"):
+            variant = variants.get(variant_name)
+            if variant is None:
+                continue
+            page_candidates.append(
+                self._build_paddle_candidate(
+                    variant,
+                    region_name="page",
+                    source=f"paddle-page:{variant_name}@{angle}",
+                )
+            )
+        best_page = self._pick_best_candidate(page_candidates)
+
+        region_candidates = {}
+        for spec in self.REGION_LAYOUT:
+            candidates = []
+            for variant_name in spec["variants"]:
+                variant = variants.get(variant_name)
+                if variant is None:
+                    continue
+                cropped = self._crop_region(variant, spec["bbox"])
+                candidates.append(
+                    self._build_paddle_candidate(
+                        cropped,
+                        region_name=spec["name"],
+                        source=f"paddle-{spec['name']}:{variant_name}@{angle}",
+                    )
+                )
+            best_region = self._pick_best_candidate(candidates)
+            if best_region and best_region.get("text"):
+                region_candidates[spec["name"]] = best_region
+
+        if not best_page and not region_candidates:
+            return None
+
+        if not best_page:
+            best_page = {"text": "", "score": 0.0, "avg_conf": 0.0}
+
+        assembled_text = self._assemble_document_text(best_page, region_candidates)
+        assembled_score = self._score_text(
+            assembled_text,
+            best_page.get("avg_conf", 0.0),
+            region_name="document",
+        )
+        total_score = best_page.get("score", 0.0) + assembled_score + 6.0
+        for region_name, candidate in region_candidates.items():
+            total_score += candidate["score"] * self.REGION_WEIGHTS.get(region_name, 1.0)
+
+        return {
+            "angle": angle,
+            "text": assembled_text,
+            "score": total_score,
+            "engine": "paddle",
+        }
+
+    def _select_best_tesseract_full_page_candidate(self, variants, angle):
         candidates = [
-            self._build_candidate(
+            self._build_tesseract_candidate(
                 variants["enhanced"],
                 self.FULL_PAGE_CONFIG,
                 region_name="page",
                 source=f"page-enhanced@{angle}",
             ),
-            self._build_candidate(
+            self._build_tesseract_candidate(
                 variants["threshold"],
                 self.FULL_PAGE_CONFIG,
                 region_name="page",
                 source=f"page-threshold@{angle}",
             ),
-            self._build_candidate(
+            self._build_tesseract_candidate(
                 variants["threshold"],
                 self.SPARSE_CONFIG,
                 region_name="page",
@@ -301,7 +387,7 @@ class OCRService:
         ]
         if variants.get("line_removed") is not None:
             candidates.append(
-                self._build_candidate(
+                self._build_tesseract_candidate(
                     variants["line_removed"],
                     self.DENSE_REGION_CONFIG,
                     region_name="page",
@@ -310,7 +396,7 @@ class OCRService:
             )
         return self._pick_best_candidate(candidates)
 
-    def _select_priority_region_candidates(self, variants, angle):
+    def _select_priority_tesseract_region_candidates(self, variants, angle):
         selected = {}
 
         for spec in self.REGION_LAYOUT:
@@ -323,7 +409,7 @@ class OCRService:
                 region_image = self._crop_region(variant_image, spec["bbox"])
                 for config in spec["configs"]:
                     candidates.append(
-                        self._build_candidate(
+                        self._build_tesseract_candidate(
                             region_image,
                             config,
                             region_name=spec["name"],
@@ -451,8 +537,25 @@ class OCRService:
             )
         )
 
-    def _build_candidate(self, image, config, region_name, source):
+    def _build_tesseract_candidate(self, image, config, region_name, source):
         line_data = self._ocr_image_to_line_data(image, config)
+        filtered_lines = self._filter_noise_lines(line_data, region_name)
+        text = "\n".join(item["text"] for item in filtered_lines)
+        average_confidence = 0.0
+        if filtered_lines:
+            average_confidence = sum(item["confidence"] for item in filtered_lines) / len(filtered_lines)
+
+        score = self._score_text(text, average_confidence, region_name)
+        return {
+            "text": text,
+            "score": score,
+            "avg_conf": round(average_confidence, 2),
+            "source": source,
+            "region": region_name,
+        }
+
+    def _build_paddle_candidate(self, image, region_name, source):
+        line_data = self._paddle_image_to_line_data(image)
         filtered_lines = self._filter_noise_lines(line_data, region_name)
         text = "\n".join(item["text"] for item in filtered_lines)
         average_confidence = 0.0
@@ -519,6 +622,38 @@ class OCRService:
             )
 
         return line_data
+
+    def _paddle_image_to_line_data(self, image):
+        paddle_engine = self._get_paddle_engine()
+        if paddle_engine is None:
+            return []
+
+        if np is None:
+            return []
+
+        image_rgb = image.convert("RGB")
+        paddle_result = paddle_engine.ocr(np.array(image_rgb), cls=True)
+        if not paddle_result:
+            return []
+
+        lines = []
+        for page in paddle_result:
+            if not page:
+                continue
+            for item in page:
+                if not item or len(item) < 2:
+                    continue
+                text, confidence = item[1]
+                cleaned_text = _clean_multiline_text(text)
+                if not cleaned_text:
+                    continue
+                lines.append(
+                    {
+                        "text": cleaned_text,
+                        "confidence": float(confidence or 0.0) * 100.0,
+                    }
+                )
+        return lines
 
     def _filter_noise_lines(self, line_data, region_name):
         region_keywords = self.REGION_KEYWORDS.get(region_name, [])
@@ -715,3 +850,42 @@ class OCRService:
             return float(value)
         except (TypeError, ValueError):
             return -1.0
+
+    def _map_tesseract_language_to_paddle(self, language):
+        lowered = (language or "").lower()
+        if "kor" in lowered:
+            return "korean"
+        if "jpn" in lowered:
+            return "japan"
+        if "chi" in lowered:
+            return "ch"
+        return "en"
+
+    def _get_paddle_engine(self):
+        if self._paddle_engine is not None:
+            return self._paddle_engine
+        if self._paddle_unavailable_reason is not None:
+            return None
+        if PaddleOCR is None:
+            self._paddle_unavailable_reason = (
+                "PaddleOCR가 설치되어 있지 않습니다."
+            )
+            return None
+        if np is None:
+            self._paddle_unavailable_reason = (
+                "NumPy가 없어 PaddleOCR를 초기화할 수 없습니다."
+            )
+            return None
+
+        try:
+            self._paddle_engine = PaddleOCR(
+                use_angle_cls=True,
+                lang=self.paddle_language,
+                show_log=False,
+            )
+            return self._paddle_engine
+        except Exception as exc:  # pragma: no cover - runtime dependency
+            self._paddle_unavailable_reason = (
+                f"PaddleOCR 초기화 실패: {exc}"
+            )
+            return None

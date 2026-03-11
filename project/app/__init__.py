@@ -29,6 +29,8 @@ def create_app():
     ocr_service = OCRService(
         language=app.config["OCR_LANGUAGE"],
         max_pages=app.config["OCR_MAX_PAGES"],
+        backend=app.config["OCR_BACKEND"],
+        paddle_language=app.config["OCR_PADDLE_LANGUAGE"],
     )
     parser = DocumentParser(
         api_key=app.config["OPENAI_API_KEY"],

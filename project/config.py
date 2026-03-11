@@ -21,7 +21,8 @@ class Config:
 
     OCR_LANGUAGE = os.getenv("OCR_LANGUAGE", "kor+eng")
     OCR_MAX_PAGES = int(os.getenv("OCR_MAX_PAGES", "3"))
+    OCR_BACKEND = os.getenv("OCR_BACKEND", "auto")
+    OCR_PADDLE_LANGUAGE = os.getenv("OCR_PADDLE_LANGUAGE", "korean")
 
     AUTO_DELETE_ORIGINAL = os.getenv("AUTO_DELETE_ORIGINAL", "False").lower() == "true"
     RULES_FILE = BASE_DIR / "rules" / "rules.json"
-
