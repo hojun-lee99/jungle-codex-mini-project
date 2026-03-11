@@ -227,3 +227,9 @@ whatshouldi/
 4. 관리자용 트렌드 캐시 업데이트 페이지 추가
 5. AWS 배포 시 S3 정적 자산 분리와 Gunicorn + Nginx 구성
 6. MongoDB Atlas 연동과 운영용 로그/모니터링 추가
+
+## 추가 문서
+
+- `AGENTS.md`: 에이전트 작업 지침
+- `docs/CONVENTIONS.md`: 팀 Git/브랜치/커밋 컨벤션
+- `docs/PROJECT_OVERVIEW.md`: 기존 저장소 개요 문서
