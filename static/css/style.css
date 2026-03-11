@@ -296,6 +296,24 @@ h1, h2, h3, h4, h5, .navbar-brand strong {
     min-width: 0;
 }
 
+.media-link,
+.content-title-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.media-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.content-title-link:hover strong,
+.content-title-link:hover h2 {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+}
+
 .feed-card {
     display: flex;
     flex-direction: column;

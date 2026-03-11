@@ -1,5 +1,8 @@
+import hashlib
+import json
 import re
 from datetime import datetime, timedelta
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree as ET
 
@@ -21,10 +24,12 @@ DEFAULT_TRENDS = [
 ]
 
 GOOGLE_TRENDS_RSS_URL = "https://trends.google.com/trending/rss?geo={region}"
+GOOGLE_SEARCH_URL = "https://www.google.com/search?q={query}"
 KOBIS_WEEKLY_BOXOFFICE_URL = (
     "http://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchWeeklyBoxOfficeList.xml"
     "?key={api_key}&weekGb=0&targetDt={target_date}"
 )
+THEMEALDB_SEARCH_URL = "https://www.themealdb.com/api/json/v1/1/search.php?s={query}"
 CATEGORY_RULES = {
     "food": [
         "맛집", "음식", "요리", "식당", "카페", "커피", "디저트", "레시피", "마라", "라면", "치킨",
@@ -44,7 +49,7 @@ CATEGORY_RULES = {
     ],
 }
 
-QUIZ_QUESTIONS = [
+DEFAULT_QUIZ_QUESTIONS = [
     {
         "id": "food_faceoff",
         "title": "오늘의 푸드 밸런스 게임",
@@ -71,6 +76,95 @@ QUIZ_QUESTIONS = [
         "right_label": "야외 산책",
         "baseline_left": 47,
         "baseline_right": 53,
+    },
+]
+
+FOOD_QUERY_HINTS = {
+    "마라": ["Arrabiata", "Curry"],
+    "헬시": ["Salad", "Chicken"],
+    "플레이트": ["Salad", "Chicken"],
+    "포케": ["Salmon", "Tuna"],
+    "연어": ["Salmon"],
+    "파스타": ["Pasta", "Arrabiata"],
+    "라면": ["Noodle"],
+    "면": ["Pasta"],
+    "치킨": ["Chicken"],
+    "커피": ["Coffee"],
+    "카페": ["Cake", "Tart"],
+    "디저트": ["Cake", "Pie"],
+    "버거": ["Burger"],
+    "피자": ["Pizza"],
+    "집밥": ["Beef", "Chicken"],
+    "국물": ["Soup", "Stew"],
+}
+
+FASHION_TREND_PROFILES = [
+    {
+        "tokens": ["고프코어", "윈드브레이커", "아웃도어"],
+        "styles": ["스트릿", "스포티"],
+        "colors": ["카키", "블랙", "그레이"],
+        "personal_colors": ["autumn warm", "winter cool"],
+        "temp_min": 8,
+        "temp_max": 21,
+        "conditions": ["clear", "cloudy", "windy"],
+    },
+    {
+        "tokens": ["오피스코어", "셋업", "블레이저"],
+        "styles": ["포멀", "미니멀"],
+        "colors": ["네이비", "블랙", "화이트"],
+        "personal_colors": ["summer cool", "winter cool"],
+        "temp_min": 10,
+        "temp_max": 23,
+        "conditions": ["clear", "cloudy"],
+    },
+    {
+        "tokens": ["데님", "청청", "클린핏"],
+        "styles": ["캐주얼", "미니멀"],
+        "colors": ["블루", "화이트", "그레이"],
+        "personal_colors": ["summer cool", "winter cool"],
+        "temp_min": 14,
+        "temp_max": 27,
+        "conditions": ["clear", "cloudy"],
+    },
+    {
+        "tokens": ["러닝룩", "애슬레저", "운동화"],
+        "styles": ["스포티", "캐주얼"],
+        "colors": ["블랙", "차콜", "화이트"],
+        "personal_colors": ["spring warm", "summer cool", "winter cool"],
+        "temp_min": 12,
+        "temp_max": 28,
+        "conditions": ["clear", "cloudy", "windy"],
+    },
+]
+
+ACTIVITY_TREND_PROFILES = [
+    {
+        "tokens": ["전시", "뮤지엄", "갤러리", "팝업"],
+        "indoor_outdoor": "mixed",
+        "energy": "medium",
+        "social": "either",
+        "budget": "medium",
+    },
+    {
+        "tokens": ["러닝", "마라톤", "산책", "트레킹"],
+        "indoor_outdoor": "outdoor",
+        "energy": "high",
+        "social": "either",
+        "budget": "low",
+    },
+    {
+        "tokens": ["캠핑", "여행", "축제"],
+        "indoor_outdoor": "outdoor",
+        "energy": "medium",
+        "social": "group",
+        "budget": "high",
+    },
+    {
+        "tokens": ["공연", "콘서트", "연극"],
+        "indoor_outdoor": "indoor",
+        "energy": "medium",
+        "social": "group",
+        "budget": "high",
     },
 ]
 
@@ -107,6 +201,236 @@ def _score_from_rank(index, traffic):
     rank_score = max(55, 100 - (index * 5))
     traffic_bonus = min(18, traffic // 20000) if traffic else 0
     return min(99, rank_score + traffic_bonus)
+
+
+def _slugify(value):
+    normalized = (value or "").strip().lower()
+    slug = re.sub(r"[^\w]+", "-", normalized, flags=re.UNICODE).strip("-_").replace("_", "-")
+    if slug:
+        return slug
+    return hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:12]
+
+
+def _json_url(url):
+    request = Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
+    with urlopen(request, timeout=12) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _first_present(values, default=""):
+    for value in values:
+        if value:
+            return value
+    return default
+
+
+def _meal_ingredients(meal):
+    ingredients = []
+    for index in range(1, 21):
+        ingredient = (meal.get(f"strIngredient{index}") or "").strip()
+        if ingredient:
+            ingredients.append(ingredient)
+    return ingredients
+
+
+def _meal_moods(meal):
+    category = (meal.get("strCategory") or "").lower()
+    area = (meal.get("strArea") or "").lower()
+    moods = ["reward", "comfort"]
+    if category in {"dessert", "breakfast"}:
+        moods = ["light", "comfort", "refresh"]
+    elif category in {"seafood", "vegetarian", "vegan"}:
+        moods = ["light", "focus", "refresh"]
+    elif category in {"beef", "lamb", "pork"}:
+        moods = ["reward", "comfort", "stress"]
+    elif category in {"pasta", "chicken"}:
+        moods = ["reward", "focus", "comfort"]
+    if area in {"japanese", "french"} and "adventure" not in moods:
+        moods.append("adventure")
+    return moods[:3]
+
+
+def _meal_time_hints(meal):
+    category = (meal.get("strCategory") or "").lower()
+    if category in {"dessert"}:
+        return ["breakfast", "late-night"]
+    if category in {"breakfast"}:
+        return ["breakfast", "lunch"]
+    return ["lunch", "dinner"]
+
+
+def _guess_spicy(meal, keyword=""):
+    haystack = " ".join(_meal_ingredients(meal) + [meal.get("strMeal", ""), keyword]).lower()
+    spicy_tokens = ["spicy", "chili", "pepper", "curry", "hot", "harissa", "gochujang"]
+    return "spicy" if any(token in haystack for token in spicy_tokens) else "mild"
+
+
+def _crop_text(value, limit=120):
+    text = re.sub(r"\s+", " ", (value or "").strip())
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - 1].rstrip()}…"
+
+
+def _trend_search_url(keyword):
+    return GOOGLE_SEARCH_URL.format(query=quote(keyword))
+
+
+def _trend_source_url(item):
+    return item.get("source_url") or _trend_search_url(item.get("keyword", ""))
+
+
+def _match_profile(keyword, profiles):
+    lowered = (keyword or "").lower()
+    for profile in profiles:
+        if any(token in lowered for token in profile["tokens"]):
+            return profile
+    return None
+
+
+def _build_live_food_item(meal, seed_keyword, source_url):
+    meal_name = meal.get("strMeal")
+    if not meal_name:
+        return None
+
+    category = meal.get("strCategory") or "Meal"
+    area = meal.get("strArea") or "Global"
+    ingredients = _meal_ingredients(meal)[:6]
+    tags = [category, area] + ingredients[:3]
+    instructions = _crop_text(meal.get("strInstructions") or f"{seed_keyword} 흐름과 맞는 실제 레시피입니다.")
+    external_url = _first_present([meal.get("strSource"), meal.get("strYoutube"), source_url])
+
+    return {
+        "name": meal_name,
+        "description": f"{seed_keyword} 키워드와 연결된 실제 메뉴입니다. {instructions}",
+        "tags": tags,
+        "moods": _meal_moods(meal),
+        "meal_times": _meal_time_hints(meal),
+        "spicy": _guess_spicy(meal, seed_keyword),
+        "ingredients": ingredients or [category],
+        "trend_keywords": [seed_keyword, category],
+        "image_url": meal.get("strMealThumb"),
+        "image_alt": f"{meal_name} 음식 사진",
+        "source": "themealdb_search",
+        "source_label": "TheMealDB + Google Trends",
+        "source_url": source_url,
+        "external_url": external_url,
+    }
+
+
+def _build_live_fashion_item(trend):
+    keyword = trend.get("keyword", "")
+    profile = _match_profile(keyword, FASHION_TREND_PROFILES) or {
+        "styles": ["캐주얼", "미니멀"],
+        "colors": ["블랙", "화이트", "그레이"],
+        "personal_colors": ["spring warm", "summer cool", "autumn warm", "winter cool"],
+        "temp_min": 12,
+        "temp_max": 24,
+        "conditions": ["clear", "cloudy"],
+    }
+    return {
+        "name": f"{keyword} 무드 코디",
+        "description": _crop_text(trend.get("headline") or "실시간 패션 키워드 기반 코디 제안입니다."),
+        "styles": profile["styles"],
+        "colors": profile["colors"],
+        "personal_colors": profile["personal_colors"],
+        "temp_min": profile["temp_min"],
+        "temp_max": profile["temp_max"],
+        "conditions": profile["conditions"],
+        "trend_keywords": [keyword],
+        "image_url": trend.get("image_url"),
+        "image_alt": trend.get("image_alt") or f"{keyword} 관련 이미지",
+        "source": "google_trends_fashion",
+        "source_label": "Google Trends",
+        "source_url": _trend_source_url(trend),
+        "external_url": _trend_source_url(trend),
+    }
+
+
+def _build_live_activity_item(trend):
+    keyword = trend.get("keyword", "")
+    profile = _match_profile(keyword, ACTIVITY_TREND_PROFILES) or {
+        "indoor_outdoor": "mixed",
+        "energy": "medium",
+        "social": "either",
+        "budget": "medium",
+    }
+    return {
+        "name": f"{keyword} 일정 잡기",
+        "description": _crop_text(trend.get("headline") or "실시간 관심이 오른 활동 키워드입니다."),
+        "indoor_outdoor": profile["indoor_outdoor"],
+        "energy": profile["energy"],
+        "social": profile["social"],
+        "budget": profile["budget"],
+        "trend_keywords": [keyword],
+        "image_url": trend.get("image_url"),
+        "image_alt": trend.get("image_alt") or f"{keyword} 관련 이미지",
+        "source": "google_trends_activity",
+        "source_label": "Google Trends",
+        "source_url": _trend_source_url(trend),
+        "external_url": _trend_source_url(trend),
+    }
+
+
+def _load_cached_live_items(cache_key, max_age_hours=6):
+    cached = get_collection("recommendation_source_cache").find_one({"cache_key": cache_key})
+    if not cached:
+        return None
+    generated_at = cached.get("generated_at")
+    if generated_at and generated_at > datetime.utcnow() - timedelta(hours=max_age_hours):
+        return cached.get("items", [])
+    return None
+
+
+def _save_cached_live_items(cache_key, source, items):
+    get_collection("recommendation_source_cache").update_one(
+        {"cache_key": cache_key},
+        {
+            "$set": {
+                "cache_key": cache_key,
+                "source": source,
+                "items": items,
+                "generated_at": datetime.utcnow(),
+            }
+        },
+        upsert=True,
+    )
+
+
+def _food_queries_from_trends(food_trends):
+    queries = []
+    seen = set()
+    for trend in food_trends:
+        keyword = trend.get("keyword", "")
+        matched = False
+        for token, candidates in FOOD_QUERY_HINTS.items():
+            if token in keyword:
+                for candidate in candidates:
+                    key = candidate.lower()
+                    if key not in seen:
+                        queries.append((candidate, keyword, _trend_source_url(trend)))
+                        seen.add(key)
+                matched = True
+        if matched:
+            continue
+        english_hint = re.sub(r"[^a-zA-Z ]", " ", keyword).strip()
+        if english_hint:
+            key = english_hint.lower()
+            if key not in seen:
+                queries.append((english_hint, keyword, _trend_source_url(trend)))
+                seen.add(key)
+    defaults = [
+        ("Arrabiata", "마라"),
+        ("Chicken", "헬시플레이트"),
+        ("Salmon", "헬시플레이트"),
+        ("Pasta", "파스타"),
+    ]
+    for query, keyword in defaults:
+        key = query.lower()
+        if key not in seen:
+            queries.append((query, keyword, _trend_search_url(keyword)))
+            seen.add(key)
+    return queries[:8]
 
 
 def _classify_trend(keyword, headline):
@@ -151,6 +475,7 @@ def _fetch_google_trends(region="KR"):
         keyword = _child_text(item, "title")
         traffic_text = _child_text(item, "approx_traffic")
         news_titles = _child_texts(item, "news_item_title")
+        news_urls = _child_texts(item, "news_item_url")
         picture = _child_text(item, "picture")
         picture_source = _child_text(item, "picture_source")
         headline = " / ".join(news_titles[:2]) if news_titles else "Google Trends 실시간 검색어"
@@ -166,6 +491,7 @@ def _fetch_google_trends(region="KR"):
                 "image_url": picture or None,
                 "image_alt": f"{keyword} 관련 뉴스 이미지" if picture else None,
                 "image_source": picture_source or None,
+                "source_url": news_urls[0] if news_urls else _trend_search_url(keyword),
                 "source": "google_trends_rss",
             }
         )
@@ -319,12 +645,133 @@ def get_trend_status(region="KR"):
     }
 
 
-def get_quiz_questions():
-    return QUIZ_QUESTIONS
+def get_live_food_catalog(region="KR", force_refresh=False):
+    cache_key = f"live_food_catalog:{region}"
+    if not force_refresh:
+        cached_items = _load_cached_live_items(cache_key, max_age_hours=8)
+        if cached_items is not None:
+            return cached_items
+
+    grouped = get_trends_by_category(region=region, force_refresh=force_refresh)
+    food_trends = grouped.get("food", [])
+    items = []
+    seen_names = set()
+
+    try:
+        for query, keyword, source_url in _food_queries_from_trends(food_trends):
+            payload = _json_url(THEMEALDB_SEARCH_URL.format(query=quote(query)))
+            for meal in payload.get("meals") or []:
+                live_item = _build_live_food_item(meal, keyword, source_url)
+                if not live_item:
+                    continue
+                meal_name = live_item["name"].strip().lower()
+                if meal_name in seen_names:
+                    continue
+                items.append(live_item)
+                seen_names.add(meal_name)
+                if len(items) >= 10:
+                    break
+            if len(items) >= 10:
+                break
+    except Exception:
+        cached_items = _load_cached_live_items(cache_key, max_age_hours=72)
+        if cached_items is not None:
+            return cached_items
+
+    if items:
+        _save_cached_live_items(cache_key, "themealdb_search", items)
+    return items
 
 
-def get_quiz_result(quiz_id):
-    quiz = next((item for item in QUIZ_QUESTIONS if item["id"] == quiz_id), None)
+def get_live_fashion_catalog(region="KR", force_refresh=False):
+    grouped = get_trends_by_category(region=region, force_refresh=force_refresh)
+    items = []
+    seen = set()
+    for trend in grouped.get("fashion", [])[:8]:
+        keyword = trend.get("keyword", "").strip().lower()
+        if not keyword or keyword in seen:
+            continue
+        items.append(_build_live_fashion_item(trend))
+        seen.add(keyword)
+    return items
+
+
+def get_live_activity_catalog(region="KR", force_refresh=False):
+    grouped = get_trends_by_category(region=region, force_refresh=force_refresh)
+    items = []
+    seen = set()
+    for trend in grouped.get("activity", [])[:8]:
+        keyword = trend.get("keyword", "").strip().lower()
+        if not keyword or keyword in seen:
+            continue
+        items.append(_build_live_activity_item(trend))
+        seen.add(keyword)
+    return items
+
+
+def _quiz_from_pair(quiz_id, title, prompt, left, right):
+    left_score = max(1, left.get("score", 50))
+    right_score = max(1, right.get("score", 50))
+    total = left_score + right_score
+    baseline_left = max(20, min(80, round((left_score / total) * 100)))
+    baseline_right = 100 - baseline_left
+    return {
+        "id": quiz_id,
+        "title": title,
+        "prompt": prompt,
+        "left_label": left.get("keyword") or left.get("name"),
+        "right_label": right.get("keyword") or right.get("name"),
+        "baseline_left": baseline_left,
+        "baseline_right": baseline_right,
+        "source_label": "Google Trends 기반 실시간 대결",
+    }
+
+
+def get_quiz_questions(region="KR", force_refresh=False):
+    grouped = get_trends_by_category(region=region, force_refresh=force_refresh)
+    questions = []
+
+    food_items = grouped.get("food", [])[:2]
+    if len(food_items) == 2:
+        questions.append(
+            _quiz_from_pair(
+                f"food-{_slugify(food_items[0]['keyword'])}-{_slugify(food_items[1]['keyword'])}",
+                "오늘의 푸드 밸런스 게임",
+                "지금 더 끌리는 푸드 키워드는?",
+                food_items[0],
+                food_items[1],
+            )
+        )
+
+    fashion_items = grouped.get("fashion", [])[:2]
+    if len(fashion_items) == 2:
+        questions.append(
+            _quiz_from_pair(
+                f"fashion-{_slugify(fashion_items[0]['keyword'])}-{_slugify(fashion_items[1]['keyword'])}",
+                "오늘의 코디 밸런스 게임",
+                "오늘 더 입어보고 싶은 무드는?",
+                fashion_items[0],
+                fashion_items[1],
+            )
+        )
+
+    activity_items = grouped.get("activity", [])[:2]
+    if len(activity_items) == 2:
+        questions.append(
+            _quiz_from_pair(
+                f"activity-{_slugify(activity_items[0]['keyword'])}-{_slugify(activity_items[1]['keyword'])}",
+                "주말 액티비티 밸런스 게임",
+                "이번 주말에는 어느 쪽이 더 끌리나요?",
+                activity_items[0],
+                activity_items[1],
+            )
+        )
+
+    return questions or DEFAULT_QUIZ_QUESTIONS
+
+
+def get_quiz_result(quiz_id, region="KR"):
+    quiz = next((item for item in get_quiz_questions(region=region) if item["id"] == quiz_id), None)
     if not quiz:
         return None
 
@@ -355,14 +802,14 @@ def get_quiz_result(quiz_id):
 
 def build_quiz_board():
     board = []
-    for quiz in QUIZ_QUESTIONS:
+    for quiz in get_quiz_questions():
         result = get_quiz_result(quiz["id"])
         board.append({**quiz, "result": result})
     return board
 
 
 def record_quiz_vote(user_id, quiz_id, choice):
-    quiz = next((item for item in QUIZ_QUESTIONS if item["id"] == quiz_id), None)
+    quiz = next((item for item in get_quiz_questions() if item["id"] == quiz_id), None)
     if not quiz:
         return None
 

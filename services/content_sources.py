@@ -1,12 +1,16 @@
 import html
+import hashlib
+import json
 import re
 from datetime import datetime, timedelta
 from html.parser import HTMLParser
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from flask import current_app
+
 from db.mongo import get_collection
-from services.movie_images import get_tmdb_movie_poster
+from services.movie_images import get_tmdb_movie_poster, get_wikipedia_webtoon_image
 
 
 NETFLIX_TUDUM_SOURCES = [
@@ -20,6 +24,36 @@ NETFLIX_TUDUM_SOURCES = [
         "list_label": "Top 10 Movies in South Korea",
     },
 ]
+
+KOBIS_WEEKLY_SOURCE = {
+    "cache_key": "kobis_weekly_boxoffice",
+    "platform": "영화",
+    "provider": "KOBIS",
+    "content_type": "영화",
+}
+
+TMDB_SOURCES = [
+    {
+        "cache_key": "tmdb_trending_movies",
+        "url_template": "https://api.themoviedb.org/3/trending/movie/week?api_key={api_key}&language=ko-KR",
+        "platform": "영화",
+        "provider": "TMDB",
+        "content_type": "영화",
+    },
+    {
+        "cache_key": "tmdb_trending_tv",
+        "url_template": "https://api.themoviedb.org/3/trending/tv/week?api_key={api_key}&language=ko-KR",
+        "platform": "시리즈",
+        "provider": "TMDB",
+        "content_type": "시리즈",
+    },
+]
+
+KOBIS_WEEKLY_URL = (
+    "http://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchWeeklyBoxOfficeList.xml"
+    "?key={api_key}&weekGb=0&targetDt={target_date}"
+)
+TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 
 LOCAL_CONTENT_LIBRARY = [
     {
@@ -247,6 +281,80 @@ NETFLIX_FALLBACK_ROWS = {
     ],
 }
 
+KOBIS_FALLBACK_ROWS = [
+    {"rank": "1", "movieNm": "파묘", "openDt": "2024-02-22", "audiAcc": "11984571"},
+    {"rank": "2", "movieNm": "듄: 파트2", "openDt": "2024-02-28", "audiAcc": "1942731"},
+    {"rank": "3", "movieNm": "웡카", "openDt": "2024-01-31", "audiAcc": "3321185"},
+    {"rank": "4", "movieNm": "건국전쟁", "openDt": "2024-02-01", "audiAcc": "1129319"},
+    {"rank": "5", "movieNm": "존 오브 인터레스트", "openDt": "2024-06-05", "audiAcc": "201531"},
+]
+
+TMDB_FALLBACK_RESULTS = {
+    "tmdb_trending_movies": [
+        {
+            "id": 693134,
+            "title": "Dune: Part Two",
+            "overview": "운명을 건 전쟁과 사막 행성의 거대한 세계관이 이어지는 SF 대작.",
+            "genre_ids": [878, 12, 28],
+            "poster_path": None,
+            "vote_average": 8.3,
+            "release_date": "2024-02-27",
+            "popularity": 220.0,
+        },
+        {
+            "id": 823464,
+            "title": "Godzilla x Kong: The New Empire",
+            "overview": "거대한 몬스터 세계관과 블록버스터 액션을 전면에 둔 화제작.",
+            "genre_ids": [28, 878, 12],
+            "poster_path": None,
+            "vote_average": 7.2,
+            "release_date": "2024-03-27",
+            "popularity": 210.0,
+        },
+    ],
+    "tmdb_trending_tv": [
+        {
+            "id": 94997,
+            "name": "House of the Dragon",
+            "overview": "권력과 혈통, 전쟁이 얽히는 판타지 시리즈의 대표작.",
+            "genre_ids": [10765, 18, 10759],
+            "poster_path": None,
+            "vote_average": 8.4,
+            "first_air_date": "2022-08-21",
+            "popularity": 198.0,
+        },
+        {
+            "id": 1434,
+            "name": "Family Guy",
+            "overview": "가볍게 보기에 좋은 장수 애니메이션 시리즈.",
+            "genre_ids": [16, 35],
+            "poster_path": None,
+            "vote_average": 7.4,
+            "first_air_date": "1999-01-31",
+            "popularity": 160.0,
+        },
+    ],
+}
+
+TMDB_GENRE_MAP = {
+    12: "모험",
+    14: "판타지",
+    16: "애니메이션",
+    18: "드라마",
+    27: "공포",
+    28: "액션",
+    35: "코미디",
+    53: "스릴러",
+    80: "범죄",
+    878: "SF",
+    9648: "미스터리",
+    10749: "로맨스",
+    10751: "가족",
+    10759: "액션",
+    10765: "판타지",
+    99: "다큐",
+}
+
 NETFLIX_TITLE_HINTS = {
     "Ballerina": {
         "genres": ["액션", "스릴러", "범죄"],
@@ -302,8 +410,11 @@ NETFLIX_TITLE_HINTS = {
 
 
 def _slugify(value):
-    slug = re.sub(r"[^a-z0-9]+", "-", value.lower())
-    return slug.strip("-")
+    normalized = (value or "").strip().lower()
+    slug = re.sub(r"[^\w]+", "-", normalized, flags=re.UNICODE).strip("-_").replace("_", "-")
+    if slug:
+        return slug
+    return hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:12]
 
 
 def _visual_palette(item):
@@ -388,6 +499,9 @@ def _build_svg_poster(item):
     provider_text = html.escape((item.get("provider") or "").upper()[:18])
     type_text = html.escape((item.get("content_type") or "").upper()[:16])
     accent = palette["accent"]
+    genres = [genre.lower() for genre in item.get("genres", [])]
+    provider = (item.get("provider") or "").lower()
+    content_type = (item.get("content_type") or "").lower()
 
     title_nodes = []
     start_y = 152
@@ -396,6 +510,52 @@ def _build_svg_poster(item):
         y = start_y + (index * 22)
         title_nodes.append(
             f"<text x='22' y='{y}' fill='white' font-size='20' font-family='Arial, sans-serif' font-weight='700'>{safe_line}</text>"
+        )
+
+    scene_elements = [
+        "<rect x='22' y='70' width='276' height='238' rx='24' fill='rgba(10,10,10,0.18)' stroke='rgba(255,255,255,0.22)'/>"
+    ]
+    if "웹툰" in content_type:
+        scene_elements.extend(
+            [
+                "<rect x='38' y='92' width='112' height='150' rx='18' fill='rgba(255,255,255,0.16)'/>",
+                "<rect x='168' y='92' width='112' height='92' rx='18' fill='rgba(255,255,255,0.11)'/>",
+                "<rect x='168' y='198' width='112' height='44' rx='18' fill='rgba(255,255,255,0.18)'/>",
+                "<path d='M63 210 C72 168, 122 148, 136 106' fill='none' stroke='rgba(255,255,255,0.34)' stroke-width='7' stroke-linecap='round'/>",
+                "<circle cx='228' cy='132' r='20' fill='rgba(255,255,255,0.22)'/>",
+            ]
+        )
+    elif provider == "youtube" or "영상" in content_type:
+        scene_elements.extend(
+            [
+                "<rect x='48' y='104' width='224' height='136' rx='22' fill='rgba(255,255,255,0.12)' stroke='rgba(255,255,255,0.18)'/>",
+                "<circle cx='160' cy='172' r='42' fill='rgba(255,255,255,0.20)'/>",
+                "<path d='M145 148 L188 172 L145 196 Z' fill='rgba(255,255,255,0.88)'/>",
+                "<rect x='64' y='258' width='192' height='10' rx='5' fill='rgba(255,255,255,0.18)'/>",
+            ]
+        )
+    elif any(genre in genres for genre in ["액션", "스릴러", "범죄"]):
+        scene_elements.extend(
+            [
+                "<path d='M36 274 L92 214 L132 248 L186 160 L252 248 L284 196 L284 308 L36 308 Z' fill='rgba(255,255,255,0.16)'/>",
+                "<path d='M84 110 L116 142 L84 174' fill='none' stroke='rgba(255,255,255,0.28)' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/>",
+                "<path d='M236 104 L260 132 L236 160' fill='none' stroke='rgba(255,255,255,0.2)' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/>",
+            ]
+        )
+    elif any(genre in genres for genre in ["판타지", "sf", "모험"]):
+        scene_elements.extend(
+            [
+                "<circle cx='88' cy='138' r='26' fill='rgba(255,255,255,0.24)'/>",
+                "<path d='M56 258 C104 188, 148 164, 216 188 C246 198, 266 222, 286 256 L286 308 L36 308 Z' fill='rgba(255,255,255,0.14)'/>",
+                "<path d='M140 112 L154 140 L184 144 L162 166 L168 196 L140 182 L112 196 L118 166 L96 144 L126 140 Z' fill='rgba(255,255,255,0.28)'/>",
+            ]
+        )
+    else:
+        scene_elements.extend(
+            [
+                "<path d='M48 284 L92 214 L132 248 L186 160 L252 248 L280 206 L280 310 L48 310 Z' fill='rgba(255,255,255,0.18)'/>",
+                "<circle cx='94' cy='144' r='24' fill='rgba(255,255,255,0.18)'/>",
+            ]
         )
 
     svg = (
@@ -410,9 +570,7 @@ def _build_svg_poster(item):
         "<circle cx='266' cy='76' r='92' fill='url(#poster-bg)' opacity='0.9'/>"
         "<rect x='22' y='24' width='124' height='30' rx='15' fill='rgba(255,255,255,0.16)'/>"
         f"<text x='36' y='44' fill='{accent}' font-size='14' font-family='Arial, sans-serif' font-weight='700'>{palette['label']}</text>"
-        "<rect x='22' y='70' width='276' height='238' rx='24' fill='rgba(10,10,10,0.18)' stroke='rgba(255,255,255,0.22)'/>"
-        "<path d='M48 284 L92 214 L132 248 L186 160 L252 248 L280 206 L280 310 L48 310 Z' fill='rgba(255,255,255,0.18)'/>"
-        "<circle cx='94' cy='144' r='24' fill='rgba(255,255,255,0.18)'/>"
+        f"{''.join(scene_elements)}"
         f"{''.join(title_nodes)}"
         f"<text x='22' y='364' fill='{accent}' font-size='13' font-family='Arial, sans-serif'>{provider_text}</text>"
         f"<text x='22' y='389' fill='rgba(255,255,255,0.85)' font-size='15' font-family='Arial, sans-serif'>{type_text}</text>"
@@ -424,14 +582,22 @@ def _build_svg_poster(item):
 def _decorate_content_item(item):
     decorated = dict(item)
     poster_url = decorated.get("image_url")
+    external_url = decorated.get("external_url") or decorated.get("source_url")
+
+    if not poster_url and decorated.get("content_type") == "웹툰":
+        poster_url = get_wikipedia_webtoon_image(decorated["name"], force_refresh=False)
     if (
         not poster_url
         and decorated.get("content_type") == "영화"
         and (decorated.get("source") == "netflix_tudum" or (decorated.get("provider") or "").lower() == "netflix")
     ):
         poster_url = get_tmdb_movie_poster(decorated["name"], force_refresh=False)
+    if (decorated.get("provider") or "").lower() == "youtube":
+        external_url = external_url or f"https://www.youtube.com/results?search_query={quote(decorated['name'])}"
+
     decorated["image_url"] = poster_url or _build_svg_poster(decorated)
     decorated["image_alt"] = decorated.get("image_alt") or f"{decorated['name']} 포스터"
+    decorated["external_url"] = external_url
     return decorated
 
 
@@ -507,6 +673,126 @@ def _extract_visible_tokens(page_html):
 
 def _looks_like_week_range(token):
     return bool(re.fullmatch(r"South Korea \| \d{1,2}/\d{1,2}/\d{2} - \d{1,2}/\d{1,2}/\d{2}", token))
+
+
+def _last_week_target_date():
+    return (datetime.utcnow() - timedelta(days=7)).strftime("%Y%m%d")
+
+
+def _parse_json_url(url):
+    request = Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
+    with urlopen(request, timeout=15) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _tmdb_genres(genre_ids):
+    genres = [TMDB_GENRE_MAP.get(genre_id) for genre_id in genre_ids or [] if TMDB_GENRE_MAP.get(genre_id)]
+    return genres or ["드라마"]
+
+
+def _moods_from_genres(genres):
+    lowered = {genre.lower() for genre in genres}
+    moods = []
+    if lowered & {"액션", "스릴러", "범죄"}:
+        moods.extend(["focus", "reward", "dark"])
+    if lowered & {"코미디", "애니메이션", "가족"}:
+        moods.extend(["light", "comfort", "refresh"])
+    if lowered & {"판타지", "sf", "모험"}:
+        moods.extend(["adventure", "focus", "reward"])
+    if lowered & {"로맨스", "드라마"}:
+        moods.extend(["comfort", "depth", "light"])
+    if not moods:
+        moods.extend(["focus", "comfort"])
+    ordered = []
+    for mood in moods:
+        if mood not in ordered:
+            ordered.append(mood)
+    return ordered[:3]
+
+
+def _tmdb_item_description(title, genres, overview, content_type):
+    if overview:
+        return overview.strip()
+    genre_text = ", ".join(genres[:2])
+    if content_type == "시리즈":
+        return f"{genre_text} 결을 중심으로 지금 화제가 되는 시리즈입니다."
+    return f"{genre_text} 분위기를 좋아할 때 보기 좋은 화제의 영화입니다."
+
+
+def _build_kobis_item(row):
+    title = row.get("movieNm", "").strip()
+    if not title:
+        return None
+    poster_url = get_tmdb_movie_poster(title, force_refresh=False)
+    genres = ["드라마", "영화"]
+    lower = title.lower()
+    if any(keyword in lower for keyword in ["듄", "dune", "godzilla", "kong"]):
+        genres = ["SF", "모험", "액션"]
+    elif any(keyword in lower for keyword in ["파묘", "존", "wick", "crime"]):
+        genres = ["스릴러", "미스터리", "드라마"]
+    elif any(keyword in lower for keyword in ["웡카", "애니", "moana"]):
+        genres = ["가족", "판타지", "코미디"]
+
+    rank = int(row.get("rank") or 10)
+    audience_acc = int((row.get("audiAcc") or "0").replace(",", "") or 0)
+    return {
+        "id": f"kobis:weekly:{_slugify(title)}",
+        "name": title,
+        "description": f"국내 주간 박스오피스에서 강하게 반응한 작품입니다. 누적 관객 {audience_acc:,}명.",
+        "genres": genres,
+        "platforms": ["영화"],
+        "provider": "KOBIS",
+        "content_type": "영화",
+        "moods": _moods_from_genres(genres),
+        "trend_keywords": [title, "박스오피스", "KOBIS", "주간 흥행"],
+        "duration_label": "극장 화제작",
+        "freshness_boost": max(3, 12 - rank),
+        "source": "kobis_weekly",
+        "image_url": poster_url,
+        "source_url": KOBIS_WEEKLY_URL.format(
+            api_key=current_app.config["KOBIS_API_KEY"],
+            target_date=_last_week_target_date(),
+        ),
+        "stats": {
+            "rank": rank,
+            "audience_acc": audience_acc,
+            "open_date": row.get("openDt"),
+        },
+    }
+
+
+def _build_tmdb_item(source, row):
+    title = (row.get("title") or row.get("name") or "").strip()
+    if not title:
+        return None
+    genres = _tmdb_genres(row.get("genre_ids"))
+    poster_path = row.get("poster_path")
+    poster_url = f"{TMDB_IMAGE_BASE_URL}{poster_path}" if poster_path else None
+    content_type = source["content_type"]
+    release_label = row.get("release_date") or row.get("first_air_date") or ""
+    score = row.get("vote_average") or 0
+    popularity = int(row.get("popularity") or 0)
+    return {
+        "id": f"{source['cache_key']}:{row.get('id')}",
+        "name": title,
+        "description": _tmdb_item_description(title, genres, row.get("overview"), content_type),
+        "genres": genres,
+        "platforms": [source["platform"]],
+        "provider": source["provider"],
+        "content_type": content_type,
+        "moods": _moods_from_genres(genres),
+        "trend_keywords": [title, "TMDB", "화제작", "추천"],
+        "duration_label": "TMDB 인기작",
+        "freshness_boost": 5,
+        "source": "tmdb_trending",
+        "image_url": poster_url,
+        "source_url": f"https://www.themoviedb.org/{'movie' if content_type == '영화' else 'tv'}/{row.get('id')}",
+        "stats": {
+            "vote_average": score,
+            "popularity": popularity,
+            "release_label": release_label,
+        },
+    }
 
 
 def _fallback_title_hints(title, content_type):
@@ -645,10 +931,105 @@ def refresh_netflix_cache(force=False):
     return refreshed
 
 
+def refresh_kobis_cache(force=False):
+    collection = get_collection("content_source_cache")
+    now = datetime.utcnow()
+    stale_cutoff = now - timedelta(hours=12)
+    source = KOBIS_WEEKLY_SOURCE
+    cached = collection.find_one({"cache_key": source["cache_key"]})
+    if cached and cached.get("generated_at") and cached["generated_at"] > stale_cutoff and not force:
+        return cached
+
+    target_date = _last_week_target_date()
+    source_url = KOBIS_WEEKLY_URL.format(
+        api_key=current_app.config["KOBIS_API_KEY"],
+        target_date=target_date,
+    )
+
+    try:
+        request = Request(source_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen(request, timeout=15) as response:
+            root = html.unescape(response.read().decode("utf-8", "ignore"))
+        row_matches = re.findall(
+            r"<weeklyBoxOffice>.*?<rank>(.*?)</rank>.*?<movieNm>(.*?)</movieNm>.*?<openDt>(.*?)</openDt>.*?<audiAcc>(.*?)</audiAcc>.*?</weeklyBoxOffice>",
+            root,
+            re.DOTALL,
+        )
+        rows = [
+            {"rank": rank.strip(), "movieNm": name.strip(), "openDt": open_dt.strip(), "audiAcc": audi_acc.strip()}
+            for rank, name, open_dt, audi_acc in row_matches[:10]
+        ]
+        if not rows:
+            raise ValueError("No KOBIS rows parsed")
+    except Exception:
+        rows = KOBIS_FALLBACK_ROWS
+
+    items = [item for item in (_build_kobis_item(row) for row in rows) if item]
+    payload = {
+        "cache_key": source["cache_key"],
+        "source_url": source_url,
+        "generated_at": now,
+        "target_date": target_date,
+        "items": items,
+    }
+    collection.update_one({"cache_key": source["cache_key"]}, {"$set": payload}, upsert=True)
+    return payload
+
+
+def refresh_tmdb_cache(force=False):
+    collection = get_collection("content_source_cache")
+    now = datetime.utcnow()
+    stale_cutoff = now - timedelta(hours=12)
+    refreshed = {}
+
+    for source in TMDB_SOURCES:
+        cached = collection.find_one({"cache_key": source["cache_key"]})
+        if cached and cached.get("generated_at") and cached["generated_at"] > stale_cutoff and not force:
+            refreshed[source["cache_key"]] = cached
+            continue
+
+        api_key = current_app.config["TMDB_API_KEY"]
+        source_url = source["url_template"].format(api_key=api_key)
+        try:
+            payload_json = _parse_json_url(source_url)
+            rows = payload_json.get("results", [])[:10]
+            if not rows:
+                raise ValueError("No TMDB rows parsed")
+        except Exception:
+            rows = TMDB_FALLBACK_RESULTS[source["cache_key"]]
+
+        items = [item for item in (_build_tmdb_item(source, row) for row in rows) if item]
+        payload = {
+            "cache_key": source["cache_key"],
+            "source_url": source_url,
+            "generated_at": now,
+            "items": items,
+        }
+        collection.update_one({"cache_key": source["cache_key"]}, {"$set": payload}, upsert=True)
+        refreshed[source["cache_key"]] = payload
+
+    return refreshed
+
+
 def get_netflix_content(force_refresh=False):
     cached_map = refresh_netflix_cache(force=force_refresh)
     items = []
     for source in NETFLIX_TUDUM_SOURCES:
+        payload = cached_map.get(source["cache_key"])
+        if payload:
+            items.extend(_decorate_content_item(item) for item in payload.get("items", []))
+    return items
+
+
+def get_kobis_content(force_refresh=False):
+    payload = refresh_kobis_cache(force=force_refresh)
+    return [_decorate_content_item(item) for item in payload.get("items", [])]
+
+
+def get_tmdb_content(force_refresh=False):
+    cached_map = refresh_tmdb_cache(force=force_refresh)
+    items = []
+    for source in TMDB_SOURCES:
         payload = cached_map.get(source["cache_key"])
         if payload:
             items.extend(_decorate_content_item(item) for item in payload.get("items", []))
@@ -670,8 +1051,10 @@ def get_netflix_status():
 
 def get_content_inventory(force_refresh=False):
     netflix_items = get_netflix_content(force_refresh=force_refresh)
+    kobis_items = get_kobis_content(force_refresh=force_refresh)
+    tmdb_items = get_tmdb_content(force_refresh=force_refresh)
     local_items = [_decorate_content_item(item) for item in LOCAL_CONTENT_LIBRARY]
-    return local_items + netflix_items
+    return local_items + netflix_items + kobis_items + tmdb_items
 
 
 def find_content_item(content_id, force_refresh=False):

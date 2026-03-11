@@ -80,6 +80,20 @@ def _recent_content_context(history_entries):
     }
 
 
+def _is_supported_content_item(item):
+    provider = (item.get("provider") or "").lower()
+    content_type = (item.get("content_type") or "").lower()
+    platforms = {platform.lower() for platform in item.get("platforms", [])}
+
+    if provider in {"ott", "youtube"}:
+        return False
+    if content_type in {"웹툰", "영상"}:
+        return False
+    if platforms & {"웹툰", "유튜브"}:
+        return False
+    return True
+
+
 def recommend_food(profile, form_input, trends=None, recent_history=None):
     favorites = _normalize(profile["food"].get("favorites", []))
     dislikes = _normalize(profile["food"].get("dislikes", []))
@@ -256,6 +270,8 @@ def recommend_content(profile, form_input, trends=None, recent_history=None, fee
 
     candidates = []
     for item in content_inventory:
+        if not _is_supported_content_item(item):
+            continue
         score = 30
         reasons = []
         signal_breakdown = []
@@ -371,6 +387,7 @@ def recommend_content(profile, form_input, trends=None, recent_history=None, fee
                 "signal_breakdown": [signal for signal in signal_breakdown if signal["score"] != 0],
                 "source": item.get("source", "curated"),
                 "source_url": item.get("source_url"),
+                "external_url": item.get("external_url"),
                 "image_url": item.get("image_url"),
                 "image_alt": item.get("image_alt"),
                 "feedback_state": "like" if direct_feedback > 0 else "dislike" if direct_feedback < 0 else None,

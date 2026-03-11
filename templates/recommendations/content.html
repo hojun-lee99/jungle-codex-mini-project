@@ -4,7 +4,7 @@
 <section class="page-header-block">
     <span class="eyebrow">Content Feed</span>
     <h1 class="display-6 fw-bold mt-2">오늘 뭐 보지?</h1>
-    <p class="text-muted">장르 취향, 현재 무드, 심리 프로필, 좋아요/싫어요, 트렌드, Netflix 한국 영화 Top 10 데이터를 함께 섞어서 추천 피드를 만듭니다.</p>
+    <p class="text-muted">Netflix 한국 영화 Top 10, KOBIS 박스오피스, TMDB 트렌딩 영화·시리즈를 함께 섞어 추천 피드를 만듭니다.</p>
 </section>
 
 <div class="row g-4 mb-4">
@@ -17,7 +17,7 @@
                 </div>
                 <div>
                     <label class="form-label">선호 플랫폼 / 서비스</label>
-                    <input type="text" name="platforms" class="form-control" value="{{ form_values.platforms }}" placeholder="예: 웹툰, 영화, 유튜브, 드라마, 넷플릭스">
+                    <input type="text" name="platforms" class="form-control" value="{{ form_values.platforms }}" placeholder="예: 영화, 드라마, 넷플릭스">
                 </div>
                 <div>
                     <label class="form-label">현재 무드</label>
@@ -42,13 +42,15 @@
                     <p class="text-muted mb-0">{{ result.algorithm.summary }}</p>
                 </div>
                 <div class="align-self-lg-center">
-                    <a href="{{ url_for('recommendations.content', refresh=1) }}" class="btn btn-outline-dark rounded-pill px-4">Netflix 한국 영화 데이터 새로고침</a>
+                    <a href="{{ url_for('recommendations.content', refresh=1) }}" class="btn btn-outline-dark rounded-pill px-4">실시간 콘텐츠 데이터 새로고침</a>
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-2 mt-4">
                 {% for signal in result.algorithm.signals %}
                 <span class="trend-chip">{{ signal }}</span>
                 {% endfor %}
+                <span class="trend-chip">KOBIS Weekly Box Office</span>
+                <span class="trend-chip">TMDB Trending</span>
             </div>
             <div class="d-flex flex-wrap gap-3 mt-4 small text-muted" data-feedback-summary>
                 <span>좋아요 <strong data-liked-count>{{ result.feedback_summary.liked_count }}</strong>개 학습</span>
@@ -75,13 +77,25 @@
         <div class="card-surface result-panel mb-4">
             <div class="content-hero">
                 <div class="content-hero-poster">
+                    {% if result.top_pick.external_url %}
+                    <a href="{{ result.top_pick.external_url }}" target="_blank" rel="noreferrer" class="media-link">
+                    {% endif %}
                     <img src="{{ result.top_pick.image_url }}" alt="{{ result.top_pick.image_alt }}" loading="lazy">
+                    {% if result.top_pick.external_url %}
+                    </a>
+                    {% endif %}
                 </div>
                 <div class="content-hero-body">
                     <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
                         <div>
                             <span class="capsule-chip">Top Pick</span>
+                            {% if result.top_pick.external_url %}
+                            <a href="{{ result.top_pick.external_url }}" target="_blank" rel="noreferrer" class="content-title-link">
+                            {% endif %}
                             <h2 class="h3 mt-3 mb-2">{{ result.top_pick.name }}</h2>
+                            {% if result.top_pick.external_url %}
+                            </a>
+                            {% endif %}
                             <p class="text-muted mb-0">{{ result.top_pick.description }}</p>
                         </div>
                         <div class="score-pill">
@@ -114,6 +128,9 @@
                     <div class="d-flex flex-wrap gap-2 align-items-center">
                         <button class="btn btn-outline-dark rounded-pill content-feedback-btn {% if result.top_pick.feedback_state == 'like' %}active-feedback{% endif %}" data-content-id="{{ result.top_pick.id }}" data-sentiment="like">좋아요</button>
                         <button class="btn btn-outline-dark rounded-pill content-feedback-btn {% if result.top_pick.feedback_state == 'dislike' %}active-feedback{% endif %}" data-content-id="{{ result.top_pick.id }}" data-sentiment="dislike">싫어요</button>
+                        {% if result.top_pick.external_url %}
+                        <a href="{{ result.top_pick.external_url }}" target="_blank" rel="noreferrer" class="btn btn-dark rounded-pill">보러 가기</a>
+                        {% endif %}
                         {% if result.top_pick.source == 'netflix_tudum' %}
                         <span class="capsule-chip">Netflix Korea Movies Top 10</span>
                         {% endif %}
@@ -132,10 +149,22 @@
                 {% for item in result.feed[1:] %}
                 <article class="feed-card">
                     <div class="feed-poster mb-3">
+                        {% if item.external_url %}
+                        <a href="{{ item.external_url }}" target="_blank" rel="noreferrer" class="media-link">
+                        {% endif %}
                         <img src="{{ item.image_url }}" alt="{{ item.image_alt }}" loading="lazy">
+                        {% if item.external_url %}
+                        </a>
+                        {% endif %}
                         <span class="trend-score feed-score">{{ item.score }}</span>
                     </div>
+                    {% if item.external_url %}
+                    <a href="{{ item.external_url }}" target="_blank" rel="noreferrer" class="content-title-link">
+                    {% endif %}
                     <strong class="d-block mb-1">{{ item.name }}</strong>
+                    {% if item.external_url %}
+                    </a>
+                    {% endif %}
                     <small class="text-muted d-block mb-3">{{ item.provider }} · {{ item.content_type }}</small>
                     <p class="text-muted small mb-3">{{ item.description }}</p>
                     <div class="d-flex flex-wrap gap-2 mb-3">
@@ -147,6 +176,9 @@
                     <div class="d-flex flex-wrap gap-2 align-items-center">
                         <button class="btn btn-sm btn-outline-dark rounded-pill content-feedback-btn {% if item.feedback_state == 'like' %}active-feedback{% endif %}" data-content-id="{{ item.id }}" data-sentiment="like">좋아요</button>
                         <button class="btn btn-sm btn-outline-dark rounded-pill content-feedback-btn {% if item.feedback_state == 'dislike' %}active-feedback{% endif %}" data-content-id="{{ item.id }}" data-sentiment="dislike">싫어요</button>
+                        {% if item.external_url %}
+                        <a href="{{ item.external_url }}" target="_blank" rel="noreferrer" class="btn btn-sm btn-dark rounded-pill">보러 가기</a>
+                        {% endif %}
                         <span class="feedback-message small text-muted" data-feedback-message="{{ item.id }}"></span>
                     </div>
                 </article>

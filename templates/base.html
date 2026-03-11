@@ -29,18 +29,18 @@
                 <div class="collapse navbar-collapse" id="mainNav">
                     {% if current_user %}
                     <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
-                        <li class="nav-item"><a class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}" href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.food') }}">Food</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.fashion') }}">Fashion</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.content') }}">Content</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.activity') }}">Activity</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.trends') }}">Trends</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.quiz') }}">VS Quiz</a></li>
-                        <li class="nav-item"><a class="nav-link {% if request.endpoint == 'profile.survey' %}active{% endif %}" href="{{ url_for('profile.survey') }}">Survey</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('profile.profile') }}">Profile</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.history') }}">History</a></li>
+                        <li class="nav-item"><a class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}" href="{{ url_for('main.dashboard') }}">🏠 대시보드</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.food') }}">🍽️ 음식</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.fashion') }}">👗 패션</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.content') }}">🎬 콘텐츠</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.activity') }}">🚶 활동</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.trends') }}">📈 트렌드</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.quiz') }}">⚖️ 밸런스 게임</a></li>
+                        <li class="nav-item"><a class="nav-link {% if request.endpoint == 'profile.survey' %}active{% endif %}" href="{{ url_for('profile.survey') }}">🧠 설문</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('profile.profile') }}">👤 프로필</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('recommendations.history') }}">🕘 히스토리</a></li>
                         <li class="nav-item ms-lg-2">
-                            <a class="btn btn-dark rounded-pill px-3" href="{{ url_for('auth.logout') }}">Logout</a>
+                            <a class="btn btn-dark rounded-pill px-3" href="{{ url_for('auth.logout') }}">로그아웃</a>
                         </li>
                     </ul>
                     {% else %}
