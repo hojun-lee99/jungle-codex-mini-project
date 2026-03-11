@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-4">
+    <div>
+        <h1 class="h2 mb-1">문서 상세 결과</h1>
+        <p class="text-secondary mb-0">{{ document.original_filename }}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <span class="badge text-bg-{{ 'success' if document.status == 'APPROVED' else 'warning' }} px-3 py-2">
+            {{ document.status }}
+        </span>
+        <a class="btn btn-outline-dark" href="{{ url_for('main.dashboard') }}">대시보드로 이동</a>
+    </div>
+</section>
+
+<section class="row g-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5 mb-3">문서 미리보기</h2>
+                {% if document.preview_available and document.stored_filename %}
+                    {% if preview_kind == "image" %}
+                        <img class="img-fluid rounded border" src="{{ url_for('main.uploaded_file', stored_filename=document.stored_filename) }}" alt="업로드 문서 미리보기">
+                    {% elif preview_kind == "pdf" %}
+                        <iframe class="document-frame" src="{{ url_for('main.uploaded_file', stored_filename=document.stored_filename) }}"></iframe>
+                    {% endif %}
+                {% else %}
+                    <div class="empty-state">
+                        프라이버시 모드가 활성화되어 원본 문서를 저장하지 않았습니다.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h5 mb-3">자동 판정 결과</h2>
+                <div class="result-box {{ 'approved' if document.status == 'APPROVED' else 'review' }}">
+                    <div class="result-status">{{ document.status }}</div>
+                    <div class="result-confidence">신뢰도 {{ "%.2f"|format(document.confidence) }}</div>
+                    <p class="mb-0 mt-2">{{ document.reason }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h5 mb-3">구조화 데이터</h2>
+                <table class="table align-middle mb-0">
+                    <tbody>
+                        <tr>
+                            <th>이름</th>
+                            <td>{{ document.parsed_data.name or "-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>문서 유형</th>
+                            <td>{{ document_type_labels.get(document.parsed_data.document_type, "미분류") }}</td>
+                        </tr>
+                        <tr>
+                            <th>기관명</th>
+                            <td>{{ document.parsed_data.organization or "-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>발급일</th>
+                            <td>{{ document.parsed_data.issue_date or "-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>유효 기간</th>
+                            <td>{{ document.parsed_data.valid_period or "-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>파서 소스</th>
+                            <td>{{ document.parsed_data.parser_source }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="card border-0 shadow-sm mt-4">
+    <div class="card-body">
+        <h2 class="h5 mb-3">OCR 추출 원문</h2>
+        {% if document.extracted_text %}
+            <pre class="ocr-box mb-0">{{ document.extracted_text }}</pre>
+        {% else %}
+            <div class="empty-state">
+                프라이버시 설정으로 인해 원문 텍스트를 저장하지 않았습니다.
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+

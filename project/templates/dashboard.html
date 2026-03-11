@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-4">
+    <div>
+        <h1 class="h2 mb-1">관리자 대시보드</h1>
+        <p class="text-secondary mb-0">업로드된 문서, 구조화 데이터, 자동 판정 결과를 확인합니다.</p>
+    </div>
+    <div class="small text-secondary">
+        현재 저장소 모드:
+        <strong>{{ "MongoDB" if storage_mode == "mongo" else "메모리 폴백" }}</strong>
+    </div>
+</section>
+
+<section class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-label">전체</div>
+            <div class="stat-value">{{ summary.total }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-label">승인</div>
+            <div class="stat-value">{{ summary.approved }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-label">검토 필요</div>
+            <div class="stat-value">{{ summary.review_required }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-label">프라이버시 모드</div>
+            <div class="stat-value">{{ summary.privacy_enabled }}</div>
+        </div>
+    </div>
+</section>
+
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>업로드 시각</th>
+                    <th>파일명</th>
+                    <th>문서 유형</th>
+                    <th>기관명</th>
+                    <th>신뢰도</th>
+                    <th>상태</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if documents %}
+                    {% for doc in documents %}
+                        <tr>
+                            <td>{{ doc.uploaded_at.strftime("%Y-%m-%d %H:%M") if doc.uploaded_at else "-" }}</td>
+                            <td>{{ doc.original_filename }}</td>
+                            <td>{{ document_type_labels.get(doc.parsed_data.document_type, "미분류") }}</td>
+                            <td>{{ doc.parsed_data.organization or "-" }}</td>
+                            <td>{{ "%.2f"|format(doc.confidence) }}</td>
+                            <td>
+                                <span class="badge text-bg-{{ 'success' if doc.status == 'APPROVED' else 'warning' }}">
+                                    {{ doc.status }}
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-dark" href="{{ url_for('main.document_detail', document_id=doc.id) }}">상세보기</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-secondary">
+                            아직 처리된 문서가 없습니다.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
