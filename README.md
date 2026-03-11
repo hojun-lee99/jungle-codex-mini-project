@@ -136,7 +136,7 @@ gunicorn app:app
 
 Blueprint 링크:
 
-- [Render Blueprint로 배포하기](https://dashboard.render.com/blueprint/new?repo=https://github.com/jungle-codex-project/what-should-i-do)
+- [Render Blueprint로 배포하기](https://dashboard.render.com/blueprint/new?repo=https://github.com/jungle-codex-project/what-should-i)
 
 ## 환경변수 설명
 
